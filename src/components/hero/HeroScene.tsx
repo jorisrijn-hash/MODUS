@@ -20,6 +20,7 @@ import {
   type CloudGeometry,
 } from "@/lib/three/pointCloud";
 import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 
 const VERTEX = /* glsl */ `
   attribute vec3 aColor;
@@ -105,6 +106,7 @@ export function HeroScene({ className = "" }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackRef = useRef<HTMLParagraphElement>(null);
   const reducedMotion = usePrefersReducedMotion();
+  const resolvedTheme = useResolvedTheme();
 
   useEffect(() => {
     const anchor = anchorRef.current;
@@ -142,6 +144,26 @@ export function HeroScene({ className = "" }: { className?: string }) {
 
     const cloud: CloudGeometry = buildCloud(count);
     const rng = createRng(99117);
+
+    // Theme inversion for the non-accent nodes.
+    //
+    // `buildCloud` assigns ~40% of nodes the reference's dark ink, which
+    // is correct on the light ground and effectively invisible on the dark
+    // one — in a dark capture those nodes simply disappeared and the
+    // sphere read as 40% sparser than it is. The green family carries
+    // enough luminance to work on both grounds, so only the ink nodes
+    // flip, to the cream that is already dark mode's text colour. The
+    // *proportion* of accent to non-accent is identical in both themes;
+    // only which end of the contrast range the non-accent sits at changes.
+    const dark = resolvedTheme === "dark";
+    if (dark) {
+      for (let i = 0; i < count; i++) {
+        if (cloud.colored[i]) continue;
+        cloud.colors[i * 3] = 0.957;
+        cloud.colors[i * 3 + 1] = 0.957;
+        cloud.colors[i * 3 + 2] = 0.906; // #F4F4E7
+      }
+    }
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -187,10 +209,12 @@ export function HeroScene({ className = "" }: { className?: string }) {
     const edgePos = new Float32Array(edgeCount * 2 * 3);
     const edgeCol = new Float32Array(edgeCount * 2 * 3);
     const edgeAlpha = new Float32Array(edgeCount * 2).fill(1);
+    // Hairlines follow the same inversion as the ink nodes.
+    const edgeRGB = dark ? [0.957, 0.957, 0.906] : [0.102, 0.086, 0.078];
     for (let e = 0; e < edgeCount * 2; e++) {
-      edgeCol[e * 3] = 0.102;
-      edgeCol[e * 3 + 1] = 0.086;
-      edgeCol[e * 3 + 2] = 0.078;
+      edgeCol[e * 3] = edgeRGB[0];
+      edgeCol[e * 3 + 1] = edgeRGB[1];
+      edgeCol[e * 3 + 2] = edgeRGB[2];
     }
     const edgeGeo = new THREE.BufferGeometry();
     edgeGeo.setAttribute("position", new THREE.BufferAttribute(edgePos, 3));
@@ -504,7 +528,7 @@ export function HeroScene({ className = "" }: { className?: string }) {
       spokeMat.dispose();
       renderer.dispose();
     };
-  }, [reducedMotion]);
+  }, [reducedMotion, resolvedTheme]);
 
   return (
     <div ref={anchorRef} className={`relative ${className}`}>

@@ -138,6 +138,21 @@
     --sf: calc(var(--size-container) / var(--size-container-ideal));
     --size-font: calc(var(--size-unit) * var(--sf));
 
+    /* Type sizes in reference design units, resolved through `--sf`.
+     *
+     * These exist as their own variables (rather than living only in the
+     * Tailwind scale) because mobile is a RECOMPOSED design, not a scaled
+     * desktop one. Scaling the 54px desktop hero by `--sf` gives 54px at
+     * the 390px design width, which wrapped the two-line headline onto
+     * four lines — mechanically correct and visually wrong. The measured
+     * mobile design values are 40/44 for the hero and 20/24 for the lead,
+     * so the ≤767px range below substitutes those and `--sf` then scales
+     * *them* within that range. */
+    --font-hero: calc(54 * var(--sf));
+    --font-section: calc(48 * var(--sf));
+    --font-sub: calc(34 * var(--sf));
+    --font-lead: calc(24 * var(--sf));
+
     /* Design-system constants, in the reference's own units. */
     --site-container: 1512px;
     --gutter-desktop: 120px;
@@ -162,6 +177,12 @@
       --size-container-ideal: 550;
       --size-container-min: 480px;
       --size-container-max: 767px;
+
+      /* Recomposed mobile type, not scaled-down desktop type. */
+      --font-hero: calc(40 * var(--sf));
+      --font-section: calc(32 * var(--sf));
+      --font-sub: calc(24 * var(--sf));
+      --font-lead: calc(20 * var(--sf));
     }
   }
 

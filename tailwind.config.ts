@@ -81,22 +81,22 @@ const config: Config = {
         // takes the researched size and keeps the draft's deliberate
         // two-line break via explicit markup rather than font size.
         "display-hero": [
-          "max(40px, calc(54 * var(--sf)))",
+          "max(34px, var(--font-hero))",
           { lineHeight: "1.1", letterSpacing: "-0.015em" },
         ],
         // Section heading 48/52.8.
         "display-section": [
-          "max(32px, calc(48 * var(--sf)))",
+          "max(28px, var(--font-section))",
           { lineHeight: "1.1", letterSpacing: "-0.01em" },
         ],
         // Subheading 34/42.
         "display-sub": [
-          "max(24px, calc(34 * var(--sf)))",
+          "max(21px, var(--font-sub))",
           { lineHeight: "1.24", letterSpacing: "-0.005em" },
         ],
         // Lead 24/28.8 desktop, 20/24 mobile.
         lead: [
-          "max(18px, calc(24 * var(--sf)))",
+          "max(17px, var(--font-lead))",
           { lineHeight: "1.2", letterSpacing: "0em" },
         ],
         // Technical label 14/21, used with wide tracking in mono.

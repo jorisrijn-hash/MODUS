@@ -4,7 +4,9 @@ Section 11 of `MODUS-CLAUDE-CODE-MASTER-PROMPT.md`. Only verified items are
 ticked — "written" is not "verified", and a passing build is not verification
 of an interaction. Evidence lives in `MODUS_VALIDATION_REPORT.md`.
 
-**Status: Checkpoint A complete. Checkpoint B in progress.**
+**Status: A complete. B complete. C/D/E/F/G partial — see
+`MODUS_VALIDATION_REPORT.md` for exactly what is and is not verified.
+H not started.**
 
 ---
 
@@ -14,7 +16,7 @@ of an interaction. Evidence lives in `MODUS_VALIDATION_REPORT.md`.
 - [x] Actual routes, handlers, providers, styles and motion dependencies mapped.
 - [x] Existing functional baseline recorded; pre-existing failures separated.
 - [x] Plan, checklist, visual-reset audit and validation report created.
-- [ ] New shell is used by the real entry routes.
+- [x] New shell is used by the real entry routes.
 - [ ] Old hero/blob presentation and conflicting CSS/theme/type/layout influence removed.
 - [ ] Shared consumers migrated before obsolete styles/components are retired.
 - [ ] No duplicate scroll/theme/animation providers remain.
@@ -26,34 +28,34 @@ of an interaction. Evidence lives in `MODUS_VALIDATION_REPORT.md`.
 
 ## Brand and foundation
 
-- [ ] Supplied MODUS symbol used; no invented substitute.
-- [ ] Green `#1E3B2E` and other new semantic tokens applied.
-- [ ] Licensed display font or explicit Noto Serif fallback loaded; Geist supporting type.
-- [ ] New light/dark/system styling and persisted preference verified.
-- [ ] Proportional scaling and readable responsive typography implemented.
-- [ ] Unfilled frames have dashed rules and four sharp solid corner brackets.
+- [x] Supplied MODUS symbol used; no invented substitute.
+- [x] Green `#1E3B2E` and other new semantic tokens applied.
+- [x] Licensed display font or explicit Noto Serif fallback loaded; Geist supporting type.
+- [x] New light/dark/system styling and persisted preference verified.
+- [x] Proportional scaling and readable responsive typography implemented.
+- [x] Unfilled frames have dashed rules and four sharp solid corner brackets.
 - [ ] Active cards, CTAs, focus states and contrast match new design.
 
 ## Homepage and routes
 
-- [ ] Accessible responsive navigation and mobile menu.
-- [ ] Centred full/compact MODUS logo behaviour.
-- [ ] Hero copy, two-line desktop headline and real diagnostic CTA.
+- [x] Accessible responsive navigation and mobile menu.
+- [x] Centred full/compact MODUS logo behaviour.
+- [x] Hero copy, two-line desktop headline and real diagnostic CTA.
 - [ ] Interactive sphere and accessible/static fallbacks.
-- [ ] Five-line manifesto and mobile recomposition.
-- [ ] Three-step section 02 and real desktop 3D stack.
+- [x] Five-line manifesto and mobile recomposition.
+- [x] Three-step section 02 and real desktop 3D stack.
 - [ ] Capabilities, data showcase, FAQ, closing CTA and footer completed.
 - [ ] Data/copy claims verified or visibly identified as draft/illustrative.
 - [ ] Existing public information routes use new presentation.
 - [ ] Diagnostic/auth/account/client/private shells updated within actual route scope.
-- [ ] Existing business behaviour, locale, cookies, analytics and access boundaries preserved.
+- [x] Existing business behaviour, locale, cookies, analytics and access boundaries preserved.
 
 ## Hero motion
 
-- [ ] Buffered geometry, seeded QA and perspective sizing.
-- [ ] Six clusters and Fibonacci sphere target.
-- [ ] Exact 3/3/4/3s cycle with spatial morph ripple.
-- [ ] Network-to-spoke topology/alpha transition.
+- [x] Buffered geometry, seeded QA and perspective sizing.
+- [x] Six clusters and Fibonacci sphere target.
+- [x] Exact 3/3/4/3s cycle with spatial morph ripple.
+- [x] Network-to-spoke topology/alpha transition.
 - [ ] Two-axis drag, normalized inertia and correct pointer cancellation.
 - [ ] Auto rotation, sway, breathing and node lifecycle.
 - [ ] Projected one-at-a-time signal labels with full timing/clipping.
@@ -63,21 +65,21 @@ of an interaction. Evidence lives in `MODUS_VALIDATION_REPORT.md`.
 
 ## Stack motion
 
-- [ ] Orthographic scene, extruded 320-depth layers and MODUS identity texture.
-- [ ] Occlusion plane and actual hidden initial Z positions.
-- [ ] Production offsets 601→133→0 and auto centering.
-- [ ] Root tilt (−0.48, −0.36) and final flatten.
-- [ ] Main panels and category/tool row stagger at specified timeline positions.
-- [ ] Single 2.7-unit reversible timeline, start/end and scrub 0.6.
-- [ ] Tall story steps, nearest-center activation and CSS sticky without double pin.
+- [x] Orthographic scene, extruded 320-depth layers and MODUS identity texture.
+- [x] Occlusion plane and actual hidden initial Z positions.
+- [x] Production offsets 601→133→0 and auto centering.
+- [x] Root tilt (−0.48, −0.36) and final flatten.
+- [x] Main panels and category/tool row stagger at specified timeline positions.
+- [x] Single 2.7-unit reversible timeline, start/end and scrub 0.6.
+- [x] Tall story steps, nearest-center activation and CSS sticky without double pin.
 - [ ] Resize/fonts/assets refresh and proper trigger cleanup.
-- [ ] Real forward/reverse screenshots show side edges and depth emergence.
+- [x] Real forward/reverse screenshots show side edges and depth emergence.
 - [ ] Mobile/reduced-motion/WebGL fallback complete and hidden canvas paused.
 
 ## Header and PDF motion
 
-- [ ] Header 220/110 hysteresis, bottom 160 expansion and restored-scroll state.
-- [ ] Logo 600ms easing, width/opacity/gap collapse, symbol retained and centre fixed.
+- [x] Header 220/110 hysteresis, bottom 160 expansion and restored-scroll state.
+- [x] Logo 600ms easing, width/opacity/gap collapse, symbol retained and centre fixed.
 - [ ] SplitText line masks, minimum required splitting and returned `onSplit` tween.
 - [ ] Correct durations/staggers/start/ease; fonts/locale/resize cleanup.
 - [ ] No hidden text after plugin failure/no-JS/reduced motion.

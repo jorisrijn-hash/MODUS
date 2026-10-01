@@ -93,7 +93,7 @@ export function StackSection() {
     // Lazy, client-only, and only after fonts resolve — the panel textures
     // bake type into a canvas, so building them before `fonts.ready`
     // permanently stamps a fallback face into the diagram.
-    (async () => {
+    const build = async () => {
       const [{ createStackScene }, { createStackTimeline, ScrollTrigger }] = await Promise.all([
         import("@/lib/three/stackScene"),
         import("@/lib/three/stackTimeline"),
@@ -167,10 +167,34 @@ export function StackSection() {
         scene.dispose();
         canvas.remove();
       };
-    })();
+    };
+
+    // Genuinely lazy: the module, the WebGL context, the canvas and the
+    // nine baked textures are all created only once the section is within
+    // roughly two viewports of being read. A visitor who never scrolls
+    // that far never pays for any of it, and the top of the homepage
+    // carries exactly one canvas (the hero) rather than two.
+    //
+    // There is no frame loop to pause here: the scene renders only from
+    // the scrubbed timeline's `onUpdate`, so it draws while the section is
+    // being scrolled through and is genuinely idle otherwise.
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        void build();
+      },
+      // ~60% of a viewport of lead time: enough to finish the dynamic
+      // import and bake the textures before the section is reached, but
+      // not so much that the observer is already intersecting at the top
+      // of the homepage. 200% was, which defeated the whole point.
+      { rootMargin: "60% 0px" }
+    );
+    io.observe(section);
 
     return () => {
       cancelled = true;
+      io.disconnect();
       cleanup?.();
     };
     // `t.diagram` is dictionary content: a locale change must rebuild the

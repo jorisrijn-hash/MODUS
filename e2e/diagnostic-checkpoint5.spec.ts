@@ -147,13 +147,31 @@ test("a failed submission shows a calm retry state, preserves answers, and a ret
   await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
 });
 
-test("diagnostic route does not mount the WebGL fluid field; homepage does", async ({ page }) => {
+/*
+ * Rewritten for the Antimetal rebuild, which retired the site-wide WebGL
+ * fluid field entirely (see MODUS_VISUAL_RESET_AUDIT.md). The invariant
+ * the original test protected is still worth protecting and is unchanged
+ * in substance: the Diagnostic stays free of decorative WebGL so attention
+ * is on the question and the route stays light, while the homepage does
+ * carry its one focal scene.
+ *
+ * What changed is only which component provides that scene — the hero
+ * point cloud rather than the fluid field.
+ */
+test("diagnostic route mounts no decorative WebGL; the homepage mounts the hero scene", async ({
+  page,
+}) => {
   await page.goto("/diagnostic");
   await page.waitForLoadState("networkidle");
   await expect(page.locator("canvas")).toHaveCount(0);
 
   await page.goto("/");
   await page.waitForLoadState("networkidle");
-  // The fluid field mounts lazily on the client; give it a moment.
-  await expect(page.locator("canvas")).toHaveCount(1, { timeout: 5000 });
+  // Scoped to the hero rather than counting canvases page-wide: the
+  // homepage legitimately has a second scene further down (the
+  // architecture stack), which builds lazily as it is approached. A
+  // page-wide count would make this test fail for the wrong reason the
+  // moment that lazy threshold is retuned.
+  const hero = page.locator("section").first();
+  await expect(hero.locator("canvas")).toHaveCount(1, { timeout: 5000 });
 });
