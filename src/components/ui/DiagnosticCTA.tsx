@@ -4,14 +4,28 @@ import Link from "next/link";
 import { useCustomerContext } from "@/lib/customerContext/useCustomerContext";
 import { useDict } from "@/lib/i18n/context";
 import { MagneticButton } from "@/components/ui/MagneticButton";
+import { AnimatedChars } from "@/components/ui/AnimatedChars";
 import { track } from "@/lib/chatbot";
 
 type Variant = "nav" | "hero" | "inline" | "dark" | "footer" | "accent-invert" | "hero-round";
 
+/**
+ * Shape and size per variant. Two changes from before:
+ *
+ * 1. Every pill variant is now `rounded-full` (999px), so the nav, hero,
+ *    section and closing diagnostic CTAs all read as the same control.
+ *    They previously used `rounded` (3px), which made them squared-off
+ *    next to the genuinely pill-shaped nav capsules. Padding, height and
+ *    typography are untouched — this is a radius change only.
+ * 2. The background colour moved OFF the control and onto the decorative
+ *    `[data-chars-bg]` layer below, because the PDF's effect insets that
+ *    surface on hover. At rest (inset 0) it is pixel-identical to the
+ *    previous solid fill; the colours themselves are unchanged.
+ */
 const VARIANT_CLASS: Record<Variant, string> = {
-  nav: "rounded bg-modus px-4 py-2 text-[13px] font-medium text-modus-foreground hover:bg-modus-light",
-  hero: "rounded bg-modus px-6 py-3.5 text-[14px] font-medium text-modus-foreground hover:bg-modus-light",
-  inline: "rounded bg-modus px-5 py-2.5 text-[13px] font-medium text-modus-foreground hover:bg-modus-light",
+  nav: "rounded-full px-4 py-2 text-[13px] font-medium text-modus-foreground",
+  hero: "rounded-full px-6 py-3.5 text-[14px] font-medium text-modus-foreground",
+  inline: "rounded-full px-5 py-2.5 text-[13px] font-medium text-modus-foreground",
   // "dark" = a highlighted pill CTA placed on a dark/inverted section
   // (e.g. a future Philosophy-style dark section, Checkpoint 4+) — a
   // bordered outline rather than the usual solid modus-green fill, which
@@ -19,7 +33,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
   // Uses the fixed inverted-foreground token (not paper), since this
   // sits on a section that's meant to stay dark regardless of site
   // theme — see globals.css's --surface-inverted comment.
-  dark: "rounded border border-inverted-foreground/30 px-6 py-3.5 text-[14px] font-medium text-inverted-foreground hover:border-inverted-foreground/60",
+  dark: "rounded-full border border-inverted-foreground/30 px-6 py-3.5 text-[14px] font-medium text-inverted-foreground hover:border-inverted-foreground/60",
   // "footer" = a plain text link matching the footer's own nav-column
   // list style, not a pill — the footer already has enough visual weight
   // from its own layout; every diagnostic action there reads as a link
@@ -35,7 +49,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
   // real mistake caught before shipping: `footer`'s fixed
   // inverted-foreground text on this section would stay near-white even
   // in dark mode, when bg-modus turns bright — poor contrast.
-  "accent-invert": "rounded bg-paper px-6 py-3.5 text-[14px] font-medium text-ink hover:bg-paper/90",
+  "accent-invert": "rounded-full px-6 py-3.5 text-[14px] font-medium text-ink",
   // "hero-round" = the compact circular forward action inside the hero's
   // floating diagnostic shell (Checkpoint 5.5, third pass). The shell
   // itself is a forced-light surface in both themes, so this uses fixed
@@ -47,7 +61,27 @@ const VARIANT_CLASS: Record<Variant, string> = {
     "h-11 w-11 justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700",
 };
 
-const BASE = "inline-flex items-center gap-2 transition-colors duration-200 ease-modus";
+const BASE = "relative inline-flex items-center gap-2 transition-colors duration-200 ease-modus";
+
+/**
+ * The decorative filled surface, per variant. `null` means this variant
+ * has no background of its own (a bordered or plain-text action), so it
+ * gets the character roll without an inset layer — the brief is explicit
+ * that plain links must not gain a background just to carry the effect.
+ *
+ * These layers are `pointer-events-none` via the shared `[data-chars-bg]`
+ * rule, so the control's hit area is exactly what it was.
+ */
+const VARIANT_BG: Record<Variant, string | null> = {
+  nav: "bg-modus group-hover/cta:bg-modus-light",
+  hero: "bg-modus group-hover/cta:bg-modus-light",
+  inline: "bg-modus group-hover/cta:bg-modus-light",
+  dark: null,
+  footer: null,
+  "accent-invert": "bg-paper group-hover/cta:bg-paper/90",
+  // Icon-only; keeps its own solid fill and is excluded from the effect.
+  "hero-round": null,
+};
 
 /**
  * The one canonical Free Diagnostic CTA — every existing hardcoded
@@ -107,13 +141,29 @@ export function DiagnosticCTA({
       ? `${nextBestAction.href}?hint=${encodeURIComponent(hint)}`
       : nextBestAction.href;
 
+  const bg = VARIANT_BG[variant];
+
   const link = (
     <Link
       href={href}
       onClick={() => track("diagnostic_click", { source })}
+      // Icon-only variants keep the label as their accessible name. For
+      // text variants the name comes from `AnimatedChars`' hidden span, so
+      // adding an aria-label here as well would be a second, competing
+      // name for the same control.
       aria-label={icon ? label : undefined}
-      className={`${BASE} ${VARIANT_CLASS[variant]} ${className}`}>
-      {icon ?? label}
+      // `data-chars-root` is what the CSS hooks hover and :focus-visible
+      // on; `group/cta` only drives the background colour swap, which
+      // Tailwind cannot express from a parent selector otherwise.
+      data-chars-root={icon ? undefined : ""}
+      className={`group/cta ${BASE} ${VARIANT_CLASS[variant]} ${className}`}
+    >
+      {/* Rendered whenever the variant has a fill, icon or not — an
+          icon-only variant simply never gets `data-chars-root`, so the
+          layer sits statically at inset 0 and the button keeps its solid
+          surface instead of losing it. */}
+      {bg ? <span data-chars-bg className={bg} aria-hidden="true" /> : null}
+      {icon ?? <AnimatedChars text={label} />}
     </Link>
   );
 

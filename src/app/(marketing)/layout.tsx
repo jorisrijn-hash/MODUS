@@ -1,9 +1,9 @@
 import { Navigation } from "@/components/sections/Navigation";
 import { Chatbot } from "@/components/chatbot/Chatbot";
-import { Loader } from "@/components/Loader";
 import { LanguagePrompt } from "@/components/language/LanguagePrompt";
 import { LenisProvider } from "@/lib/motion/LenisProvider";
 import { PageTransition } from "@/components/motion/PageTransition";
+import { SplitRevealProvider } from "@/components/motion/SplitRevealProvider";
 
 /**
  * The marketing shell — Checkpoint 3. Every public marketing route lives
@@ -27,10 +27,43 @@ import { PageTransition } from "@/components/motion/PageTransition";
  * down and MODUS_REDESIGN_REPORT.md's Checkpoint 3 entry for the
  * provider-boundary architecture this enforces.
  */
+/**
+ * Runs before first paint and hides only the headings that the masked
+ * reveal is about to take over, so they do not flash in their final
+ * position and then drop back behind their masks.
+ *
+ * It schedules its own removal. That is the whole point: if the React
+ * bundle fails to load, or `document.fonts.ready` never settles, or the
+ * GSAP chunk 404s, the headings become readable again on their own after
+ * 2 seconds rather than staying invisible forever — which is what the
+ * PDF's own "hide it in CSS" recipe would do. With JavaScript disabled
+ * this never runs at all, so nothing is ever hidden.
+ *
+ * It injects a <style> rather than adding a class to <html>. The class
+ * approach was tried first and produced a React hydration mismatch: the
+ * script runs before hydration, so the client's `<html className>` no
+ * longer matched the server's. Caught as a console error in a browser
+ * check, not predicted. An injected stylesheet is outside the hydrated
+ * tree entirely, so there is nothing to mismatch.
+ */
+const SPLIT_PENDING_SCRIPT = `(function(){try{var s=document.createElement('style');s.id='split-pending';s.textContent='[data-split="heading"]{visibility:hidden}';document.head.appendChild(s);setTimeout(function(){s.remove()},2000)}catch(e){}})()`;
+
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <LenisProvider>
-      <Loader />
+      <script dangerouslySetInnerHTML={{ __html: SPLIT_PENDING_SCRIPT }} />
+      <SplitRevealProvider />
+      {/*
+       * The first-load intro curtain (`Loader`) was mounted here and is
+       * removed at the user's request. It was a dark full-viewport panel
+       * that split and opened like doors over the already-rendered page
+       * on every full page load — presentational only, never tied to real
+       * load state, so nothing about actual loading behaviour changes by
+       * taking it out. The homepage now paints straight to the hero.
+       *
+       * `Loader.tsx` is left on disk, unmounted, matching how the retired
+       * fluid field was handled; commit history holds it either way.
+       */}
       {/*
        * `MarketingFluidField` was mounted here. It is gone, not disabled.
        *

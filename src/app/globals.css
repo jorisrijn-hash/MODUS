@@ -373,3 +373,124 @@
     text-wrap: balance;
   }
 }
+
+@layer components {
+  /* ------------------------------------------------------------------
+   * Masked heading reveal — pre-paint hiding
+   *
+   * The PDF's own FOUC recipe hides `[data-split="heading"]` in a plain
+   * stylesheet and relies on JavaScript to reveal it. That is not safe
+   * here: if the bundle fails, every heading on the site stays invisible
+   * forever, which the brief rules out explicitly.
+   *
+   * So the hiding is gated on a class that only exists while JavaScript
+   * is actively taking responsibility for the reveal. The inline script in
+   * the marketing layout adds it before first paint AND schedules its own
+   * removal, so the headings become visible again even if the React bundle
+   * never executes. With JavaScript disabled the class is never added at
+   * all and nothing is ever hidden.
+   *
+   * `visibility` rather than `display`/`opacity`: it holds the element's
+   * layout box, so nothing below it shifts when the reveal starts.
+   * ------------------------------------------------------------------ */
+  /* The pre-paint hiding rule is NOT here. It is injected at runtime by
+   * the marketing layout's inline script and removed by the same script's
+   * own timeout — see that file. Living in a stylesheet would mean a
+   * failed bundle leaves every heading invisible permanently, which the
+   * brief rules out; living in script-injected CSS means no JavaScript,
+   * no hiding. */
+  /* ------------------------------------------------------------------
+   * Character stagger — `Button with CSS Character Stagger.pdf`
+   *
+   * Mechanism is the PDF's exactly: each character is its own
+   * inline-block span carrying a duplicate of itself as a text-shadow one
+   * line-height below (`0 1.3em currentColor`). The wrapper clips, so the
+   * shadow is out of sight at rest; translating the span up by that same
+   * 1.3em slides the real glyph out of the top while its shadow arrives
+   * in the glyph's place. Per-character `transition-delay` produces the
+   * stagger. No JavaScript runs on hover.
+   *
+   * The split itself is done by React rendering rather than by the PDF's
+   * `innerHTML = ''` DOM rewrite — mutating children underneath React
+   * would fight reconciliation and re-split on every remount. The CSS, the
+   * timing and the 0.01s-per-character delay are unchanged.
+   * ------------------------------------------------------------------ */
+  [data-animate-chars] {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    /* The PDF's 1.3 line-height is what makes 1.3em the exact distance
+       between a glyph and its own shadow. Changing one without the other
+       misaligns the replacement character. */
+    line-height: 1.3;
+  }
+
+  [data-animate-chars] > span {
+    display: inline-block;
+    position: relative;
+    text-shadow: 0 1.3em currentColor;
+    /* The 0.001deg rotation is from the PDF: it forces the glyph onto its
+       own compositing layer so the slide stays sub-pixel smooth. */
+    transform: translateY(0) rotate(0.001deg);
+    transition: transform 0.6s cubic-bezier(0.625, 0.05, 0, 1);
+  }
+
+  /* Decorative background layer for controls that have a filled surface.
+     `inherit` keeps it the same pill as its control, including part-way
+     through the inset transition. */
+  [data-chars-bg] {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    transition: inset 0.6s cubic-bezier(0.625, 0.05, 0, 1),
+      background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Hover is scoped to devices that actually hover. On touch, `:hover`
+     sticks after a tap, which would leave a CTA's characters held in the
+     rolled position after navigating back to the page. */
+  @media (hover: hover) {
+    [data-chars-root]:not([disabled]):not([aria-disabled="true"]):hover
+      [data-animate-chars]
+      > span {
+      transform: translateY(-1.3em) rotate(0.001deg);
+    }
+
+    [data-chars-root]:not([disabled]):not([aria-disabled="true"]):hover [data-chars-bg] {
+      inset: 0.125em;
+    }
+  }
+
+  /* Keyboard parity. Deliberately `:focus-visible`, not `:focus`, so a
+     mouse click does not also trigger the roll — and the focus ring itself
+     is the global `:focus-visible` outline, untouched by this effect. */
+  [data-chars-root]:not([disabled]):not([aria-disabled="true"]):focus-visible
+    [data-animate-chars]
+    > span {
+    transform: translateY(-1.3em) rotate(0.001deg);
+  }
+
+  [data-chars-root]:not([disabled]):not([aria-disabled="true"]):focus-visible [data-chars-bg] {
+    inset: 0.125em;
+  }
+
+  /* The global reduced-motion block already neutralises transition
+     duration, but that would still leave the glyph *jumping* to the rolled
+     position instantly. Pinning the transform removes the effect outright
+     and leaves ordinary, still text. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-animate-chars] > span,
+    [data-chars-root]:hover [data-animate-chars] > span,
+    [data-chars-root]:focus-visible [data-animate-chars] > span {
+      transform: none !important;
+      text-shadow: none !important;
+    }
+
+    [data-chars-root]:hover [data-chars-bg],
+    [data-chars-root]:focus-visible [data-chars-bg] {
+      inset: 0 !important;
+    }
+  }
+}

@@ -4,7 +4,8 @@ Section 11 of `MODUS-CLAUDE-CODE-MASTER-PROMPT.md`. Only verified items are
 ticked — "written" is not "verified", and a passing build is not verification
 of an interaction. Evidence lives in `MODUS_VALIDATION_REPORT.md`.
 
-**Status: A complete. B complete. C/D/E/F/G partial — see
+**Status: A complete. B complete. F complete (masked text reveals and
+character-stagger buttons). C/D/E/G partial — see
 `MODUS_VALIDATION_REPORT.md` for exactly what is and is not verified.
 H not started.**
 
@@ -34,7 +35,7 @@ H not started.**
 - [x] New light/dark/system styling and persisted preference verified.
 - [x] Proportional scaling and readable responsive typography implemented.
 - [x] Unfilled frames have dashed rules and four sharp solid corner brackets.
-- [ ] Active cards, CTAs, focus states and contrast match new design.
+- [x] Active cards, CTAs, focus states and contrast match new design.
 
 ## Homepage and routes
 
@@ -80,11 +81,11 @@ H not started.**
 
 - [x] Header 220/110 hysteresis, bottom 160 expansion and restored-scroll state.
 - [x] Logo 600ms easing, width/opacity/gap collapse, symbol retained and centre fixed.
-- [ ] SplitText line masks, minimum required splitting and returned `onSplit` tween.
-- [ ] Correct durations/staggers/start/ease; fonts/locale/resize cleanup.
-- [ ] No hidden text after plugin failure/no-JS/reduced motion.
-- [ ] Button character delay 0.01s and 1.3em replacement motion.
-- [ ] Background inset, focus-visible, grapheme/space handling and disabled/loading semantics.
+- [x] SplitText line masks, minimum required splitting and returned `onSplit` tween.
+- [x] Correct durations/staggers/start/ease; fonts/locale/resize cleanup.
+- [x] No hidden text after plugin failure/no-JS/reduced motion.
+- [x] Button character delay 0.01s and 1.3em replacement motion.
+- [x] Background inset, focus-visible, grapheme/space handling and disabled/loading semantics.
 - [ ] Osmo scaling implemented through deliberate units, not ineffective body font-size alone.
 - [ ] Breakpoint/zoom/minimum readability checks.
 - [x] One Lenis instance and one clock; GSAP synchronization and imported CSS. *(pre-existing and already correct — verified in `LenisProvider.tsx`; CSS import still to confirm)*

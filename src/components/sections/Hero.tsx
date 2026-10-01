@@ -4,9 +4,10 @@ import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { Reveal } from "@/components/ui/Reveal";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
+import { AnimatedChars } from "@/components/ui/AnimatedChars";
 import { HomeContextBanner } from "@/components/customerContext/HomeContextBanner";
 import { HeroScene } from "@/components/hero/HeroScene";
-import { useDict } from "@/lib/i18n/context";
+import { useDict, useLocale } from "@/lib/i18n/context";
 
 /**
  * Hero, rebuilt for the Antimetal composition.
@@ -36,6 +37,7 @@ import { useDict } from "@/lib/i18n/context";
  */
 export function Hero() {
   const dict = useDict();
+  const { locale } = useLocale();
   const t = dict.home.hero;
 
   return (
@@ -48,18 +50,45 @@ export function Hero() {
               <p className="font-mono text-label uppercase text-muted">{t.label}</p>
             </Reveal>
 
-            <Reveal delay={0.08}>
-              <h1
-                data-split="heading"
-                className="mt-6 font-serif text-display-hero font-normal text-ink"
-              >
-                {t.headlineLines.map((line) => (
-                  <span key={line} className="block">
-                    {line}
-                  </span>
-                ))}
-              </h1>
-            </Reveal>
+            {/*
+             * Deliberately NOT wrapped in `Reveal`. The masked line reveal
+             * is this heading's entrance; layering `Reveal`'s opacity-plus-
+             * translate on the outer box as well would fade the whole
+             * heading in while its lines were still rising out of their
+             * masks — two entrances fighting, and the mask effect lost
+             * behind the fade. The brief is explicit that a simple opacity
+             * fade or whole-heading translation does not satisfy this.
+             *
+             * The explicit per-line spans are kept: they carry the intended
+             * two-line break at the design viewport. SplitText measures the
+             * rendered lines, so it splits along these same breaks rather
+             * than re-flowing the headline.
+             */}
+            <h1
+              // Keyed by locale so a language switch REPLACES this
+              // element rather than patching its children.
+              //
+              // SplitText reparents the spans below into line and mask
+              // wrappers. React still believes they are direct children of
+              // the <h1>, so when the dictionary changes it calls
+              // removeChild on the <h1> for a node that now lives inside a
+              // mask div, and the page crashes with "The node to be
+              // removed is not a child of this node". Observed as a real
+              // Next.js runtime error during the EN→NL→EN smoke test.
+              //
+              // With a key, React unmounts the whole <h1> — which IS still
+              // a child of its own parent — and mounts a fresh one for the
+              // new language, which the provider then re-splits.
+              key={locale}
+              data-split="heading"
+              className="mt-6 font-serif text-display-hero font-normal text-ink"
+            >
+              {t.headlineLines.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
+            </h1>
 
             <Reveal delay={0.16}>
               <p className="mt-7 max-w-hero-lead font-serif text-lead text-graphite">{t.body}</p>
@@ -73,9 +102,12 @@ export function Hero() {
                     primary. */}
                 <Link
                   href="/how-it-works"
-                  className="inline-flex items-center rounded-full border border-dashed border-line-strong/60 px-6 py-3.5 text-[14px] text-graphite transition-colors duration-200 ease-modus hover:border-line-strong hover:text-ink"
+                  // Secondary text button: character roll, no background
+                  // layer — it is a bordered outline, not a filled surface.
+                  data-chars-root=""
+                  className="relative inline-flex items-center rounded-full border border-dashed border-line-strong/60 px-6 py-3.5 text-[14px] text-graphite transition-colors duration-200 ease-modus hover:border-line-strong hover:text-ink"
                 >
-                  {t.ctaSecondary}
+                  <AnimatedChars text={t.ctaSecondary} />
                 </Link>
               </div>
             </Reveal>

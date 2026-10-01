@@ -8,6 +8,7 @@ import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Reveal } from "@/components/ui/Reveal";
 import { TextReveal } from "@/components/ui/TextReveal";
 import { MagneticButton } from "@/components/ui/MagneticButton";
+import { AnimatedChars } from "@/components/ui/AnimatedChars";
 import { useDict } from "@/lib/i18n/context";
 import { track, openChatbot } from "@/lib/chatbot";
 import { useCustomerContext } from "@/lib/customerContext/useCustomerContext";
@@ -51,10 +52,14 @@ function GenericPricingHero() {
                 <Link
                   href="/diagnostic"
                   onClick={() => track("pricing_diagnostic_clicked", { source: "hero" })}
-                  className="inline-flex items-center gap-2 rounded bg-modus px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus hover:bg-modus-light"
+                  data-chars-root=""
+                  className="group/cta relative inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus"
                 >
-                  {t.ctaPrimary}
-                  <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+                  <span data-chars-bg className="bg-modus group-hover/cta:bg-modus-light" aria-hidden="true" />
+                  <AnimatedChars text={t.ctaPrimary} />
+                  {/* Arrow stays a sibling of the split label, so it is never
+                      broken into animated characters. */}
+                  <ArrowRight className="relative h-4 w-4" strokeWidth={1.75} />
                 </Link>
               </MagneticButton>
               <a
@@ -158,10 +163,12 @@ function PersonalizedPricingHero({
                       track("pricing_review_clicked", { source: "personalized_hero" });
                       setShowScheduling(true);
                     }}
-                    className="inline-flex items-center gap-2 rounded bg-modus px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus hover:bg-modus-light"
+                    data-chars-root=""
+                  className="group/cta relative inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus"
                   >
-                    {cc.cta}
-                    <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+                    <span data-chars-bg className="bg-modus group-hover/cta:bg-modus-light" aria-hidden="true" />
+                    <AnimatedChars text={cc.cta} />
+                    <ArrowRight className="relative h-4 w-4" strokeWidth={1.75} />
                   </button>
                 </MagneticButton>
               )}

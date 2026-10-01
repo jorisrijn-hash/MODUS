@@ -155,15 +155,157 @@ not being scrolled through.
 **Not yet verified:** fractional browser zoom, the 1023/1024/1025 breakpoint
 edges, and sticky behaviour under a restored scroll position.
 
-## Checkpoint F — Header, SplitText, buttons, Lenis — PARTIAL
+## Checkpoint F — Header, SplitText, buttons, Lenis — COMPLETE
+
+### Masked text reveals
+
+Implemented from `Masked Text Reveal SplitText.pdf`'s advanced spec.
+SplitText **3.15.0** ships inside the installed `gsap` package; verified in
+`node_modules` before relying on it that this build supports
+`config[type + "sClass"]`, `mask`, `autoSplit`, `onSplit` and
+`aria: "auto"`, and that ScrollTrigger supports `clamp()`. No CDN script
+was injected; plugins are registered once in `src/lib/motion/gsap.ts`.
+
+Contract as built: select `[data-split="heading"]`, read
+`data-split-reveal` (default `lines`), split the minimum the mode needs,
+`mask: "lines"`, `autoSplit: true`, animate from `yPercent: 110`,
+`ease: "expo.out"`, `start: "clamp(top 80%)"`, `once: true`, and **the
+tween is created and returned inside `onSplit`** — which is what lets
+SplitText revert and replace it on re-split instead of stacking tweens.
+
+Headings wired: the three stack story headings (primary target), the hero
+`h1`, and the section-02 `h2`. Nothing else — no paragraphs or labels.
+
+**Measured, at 1440×900:**
+
+| State | Hero h1 | Section h2 | Story 1 | Story 2 | Story 3 |
+|---|---|---|---|---|---|
+| At load (scrollY 0) | revealed, y=0, mask `visible` | y=58, `clip` | y=46, `clip` | y=46, `clip` | y=46, `clip` |
+| Scrolled to story column | y=0 `visible` | y=0 `visible` | y=0 `visible` | y=0 `visible` | y=46 `clip` (still below) |
+| After resize to 1280 | y=0 `visible` | y=0 `visible` | y=0 `visible` | y=0 `visible` | re-split to y=41 `clip` |
+
+So: completed headings stay visible after a re-split and do not replay;
+uncompleted ones re-measure at the new width. Lines genuinely travel from
+`yPercent: 110` behind a clipped mask — this is not an opacity fade.
+
+Locale: EN → NL → EN re-splits correctly (`Vind de frictie.` / `Ga verder.`
+splits into 2 lines and reveals), with no console errors.
+
+**Three real bugs found and fixed during this pass:**
+
+1. **Hydration mismatch.** The pre-paint no-flash script first added a
+   class to `<html>`, which runs before hydration and made the client's
+   `className` differ from the server's. React logged a hydration error on
+   every marketing page. Replaced with an injected `<style>`, which is
+   outside the hydrated tree.
+2. **Hero never revealed on load.** Its trigger reported
+   `start: 0, progress: 0, paused: true` at `scrollY: 0` — `clamp()` pins
+   an above-the-fold start to 0, the page loads at 0, so the trigger sat
+   exactly on its own start line and never got the crossing event. The
+   headline stayed behind its mask until the first scroll. Fixed by
+   playing immediately when the trigger is already past the same 80% line,
+   with no ScrollTrigger attached in that case. The entrance position is
+   unchanged.
+3. **`removeChild` crash on language switch.** SplitText reparents a
+   heading's children into mask wrappers; React still thinks they are
+   direct children, so changing the dictionary threw
+   *"The node to be removed is not a child of this node"* and broke the
+   page. Caught by the EN→NL→EN smoke test, not predicted. Fixed by keying
+   the three split headings on `locale`, so React replaces the whole
+   heading instead of patching inside it.
+
+**Descender clipping:** `mask: "lines"` applies `overflow: clip`, which
+shears serif descenders at these display sizes. The clip is released on
+completion (`self.masks` → `overflow: visible`), verified in
+`mask-settled.png` — "slowing you down." renders its g, y and d intact.
+
+**Failure modes:** no JavaScript → the hiding style is never injected and
+headings are plain and readable; plugin/split failure → caught, pending
+style cleared, headings readable; reduced motion → **0 split lines, 0
+character wrappers**, headings complete and visible, measured.
+
+**Stack protected:** story wrappers, sticky offsets, section height and
+nearest-centre activation are untouched. The only change to the wrappers is
+a `data-split-trigger` attribute, used because a heading inside a sticky
+card is useless as a trigger once it sticks. The scrubbed 3D timeline is
+not reconstructed and card colour changes still work — `mask-settled.png`
+shows card 01 active and the 3D scene in its tilted state simultaneously.
+
+**ARIA:** SplitText's `aria: "auto"` puts `aria-hidden="true"` on every
+generated wrapper and an `aria-label` on the heading, giving exactly one
+screen-reader representation. Headings containing a link or button are
+skipped entirely rather than having that content flattened out of the
+accessibility tree; none of the current five contain any.
+
+### Character-stagger navigation and buttons
+
+Implemented from `Button with CSS Character Stagger.pdf`. The CSS, timings
+and per-character delay are the PDF's; the split is done by React
+rendering rather than the PDF's `innerHTML` rewrite, because mutating
+children under React fights reconciliation and would re-split on every
+remount. Repeat splitting is therefore structurally impossible.
+
+**Measured in the browser:**
+
+| Property | Spec | Measured |
+|---|---|---|
+| Per-character delay | index × 0.01s | `0s`, `0.01s` on successive spans |
+| Transition | `0.6s cubic-bezier(0.625,0.05,0,1)` | exactly that |
+| Shadow | `0 1.3em currentColor` | `0px 16.9px` at 13px text |
+| Hover transform | `translateY(-1.3em)` | `-16.9px` at 13px, `-18.2px` at 14px |
+| Wrapper | clips | `overflow: hidden` |
+| Background inset | 0 → 0.125em | `top: 1.625px` at 13px |
+| Pill radius, control and bg layer | 999px | `9999px` / `9999px` |
+
+| Control | Size at rest | Size on hover |
+|---|---|---|
+| Nav link "How It Works" | 81.6 × 22.4 | 81.6 × 22.4 |
+| Nav CTA "Run a Diagnostic" | 135.9 × 32.9 | 135.9 × 32.9 |
+| Hero secondary "See How It Works" | 166.1 × 48.2 | 166.1 × 48.2 |
+
+Hit areas and dimensions are unchanged on hover. Keyboard `Tab` produces
+the same `-16.9px` roll, so `:focus-visible` has parity with hover, and the
+global focus outline is untouched.
+
+Applied to: desktop navigation links, every `DiagnosticCTA` text variant,
+the hero secondary action, the shared `Button` primitive, and the three
+hardcoded pricing CTAs. Excluded: the MODUS logo and lockup, the icon-only
+`hero-round` variant, inputs and static labels. Arrows are rendered as
+siblings of the split label, so they are never broken into characters;
+`Button` only splits a plain string child, leaving any icon or spinner
+untouched.
+
+Accessible names verified with Playwright's own computation —
+`getByRole("link", { name: "How It Works", exact: true })` matches, so the
+duplicated visual/hidden text does not leak into the name. Decorative
+spans are `aria-hidden`; the real label is a visually hidden sibling.
+
+Hover rules are inside `@media (hover: hover)` so a tap on touch does not
+leave characters stuck in the rolled position. Disabled and
+`aria-disabled` controls are excluded from both the roll and the inset.
+Reduced motion renders ordinary text with no split at all.
+
+**Pill shape:** every diagnostic CTA is now `border-radius: 9999px`
+through the shared `DiagnosticCTA` variant map, with `Button` matching.
+Padding, height and typography are unchanged. The decorative background
+layer uses `border-radius: inherit`, so it stays a pill throughout the
+inset transition. The three hardcoded pricing CTAs were given the same
+radius directly rather than being migrated onto `DiagnosticCTA`, which
+would have changed their destinations from `/diagnostic` to the
+personalised next-best-action href — out of scope for a motion pass.
+
+**One honest deviation:** `[data-animate-chars]` sets `line-height: 1.3`,
+which the PDF requires for `1.3em` to be the exact glyph-to-shadow
+distance. Button heights therefore differ by roughly 1px from before.
+Measured and accepted in favour of PDF fidelity.
+
+### Other Checkpoint F items
 
 | Item | Status |
 |---|---|
-| Centred logo collapse | **Done.** 220/110 hysteresis, bottom-160 expansion, 600ms `cubic-bezier(.65,0,.35,1)` on max-width/opacity/gap/padding, symbol always visible, centred via `translateX(-50%)` so neighbours never shift, rAF-throttled passive listener, ResizeObserver, initial state evaluated synchronously for restored scroll. Visible condensed in every stack capture. |
-| Lenis | **Pre-existing and already correct** — one instance, `autoRaf: false`, `gsap.ticker` driving `lenis.raf(time*1000)`, `lagSmoothing(0)` once, reduced motion never constructs it. Lenis CSS import still to confirm. |
-| SplitText masked reveal | **NOT IMPLEMENTED.** `data-split="heading"` attributes are in place on the hero and section-02 headings, but the init module is not written. Headings render fully visible, so nothing is hidden — the failure mode the mandate warns about is avoided by default. |
-| Character-stagger buttons | **NOT IMPLEMENTED.** |
-| Header progress ring | Not implemented (explicitly secondary polish). |
+| Centred logo collapse | Done — see the geometry note below |
+| Lenis | Pre-existing and already correct; one instance, one clock |
+| Header progress ring | Not implemented (explicitly secondary polish) |
 
 ## Checkpoint G — Routes, themes, locales — PARTIAL
 
@@ -182,9 +324,16 @@ No performance measurement has been taken, so no performance claim is made.
 
 ## Regression, current
 
-`tsc` 0 errors. `eslint` 0 errors. Playwright **41 passed, 1 failed, 1
-skipped** — the one failure is the pre-existing one proven against `643cfad`
-above.
+`tsc` 0 errors. `eslint` 0 errors. Production build succeeds. Playwright
+**42 passed, 1 failed, 1 skipped** — the one failure is the pre-existing one
+proven against `643cfad` above. It is a genuine pre-existing failure, not a
+flake: it reproduces 3/3.
+
+A caution recorded for future runs: running `next build` while `next dev` is
+live overwrites `.next` and makes the dev server 404 its own chunks, which
+surfaced as two spurious diagnostic-flow failures. Restarting the dev server
+against a clean `.next` cleared them. Those were environmental and are not
+counted as regressions.
 
 One test was rewritten rather than deleted: *"diagnostic route does not mount
 the WebGL fluid field; homepage does"* asserted an architecture this rebuild

@@ -5,7 +5,7 @@ import { BracketFrame } from "@/components/ui/BracketFrame";
 import { Container } from "@/components/ui/Container";
 import { StackFallback } from "@/components/stack/StackFallback";
 import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
-import { useDict } from "@/lib/i18n/context";
+import { useDict, useLocale } from "@/lib/i18n/context";
 
 /**
  * Section 02 — three tall story steps beside a sticky, real 3D
@@ -27,6 +27,7 @@ import { useDict } from "@/lib/i18n/context";
  */
 export function StackSection() {
   const dict = useDict();
+  const { locale } = useLocale();
   const t = dict.home.stack;
   const reducedMotion = usePrefersReducedMotion();
 
@@ -207,7 +208,10 @@ export function StackSection() {
         <div className="pt-24 md:pt-32">
           <p className="font-mono text-label uppercase text-muted">{t.label}</p>
           <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <h2 data-split="heading" className="font-serif text-display-section text-ink">
+            {/* Keyed by locale — see the note on Hero's <h1>: SplitText
+                  reparents these spans, so React must replace the whole
+                  heading on a language change rather than patch inside it. */}
+              <h2 key={locale} data-split="heading" className="font-serif text-display-section text-ink">
               {t.headingLines.map((line) => (
                 <span key={line} className="block">
                   {line}
@@ -229,6 +233,18 @@ export function StackSection() {
               <div
                 key={step.id}
                 className="pb-8 lg:h-screen lg:pb-16"
+                // Trigger source for this card's heading reveal. The
+                // heading itself sits inside a sticky card, so once the
+                // card sticks its viewport position stops tracking scroll
+                // and it is useless as a ScrollTrigger. This wrapper is
+                // the heading's own story step and scrolls normally, so
+                // `clamp(top 80%)` against it still fires exactly as the
+                // card enters from the bottom.
+                //
+                // Attribute only — no layout, sticky offset or height
+                // change, and the nearest-centre activation below is
+                // untouched.
+                data-split-trigger=""
                 ref={(el) => {
                   cardRefs.current[i] = el;
                 }}
@@ -242,7 +258,11 @@ export function StackSection() {
                     >
                       {step.eyebrow}
                     </p>
-                    <h3 className="mt-5 font-serif text-display-sub">{step.heading}</h3>
+                    {/* The three stack story headings — the primary target
+                        of the masked reveal. Default mode (lines). */}
+                    <h3 key={locale} data-split="heading" className="mt-5 font-serif text-display-sub">
+                      {step.heading}
+                    </h3>
                     <p
                       className={`mt-5 text-[14px] leading-relaxed ${
                         active === i

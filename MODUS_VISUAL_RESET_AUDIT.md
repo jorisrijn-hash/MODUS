@@ -22,6 +22,7 @@ Baseline for every "removed" claim: commit `643cfad`. Nothing is unrecoverable.
 | `ModusProcessSection.tsx`, `BusinessXRaySection.tsx` (homepage) | Flat sections where a real 3D sticky stack is required | `StackSection.tsx` | COMPLETE on the homepage; both files still imported by other routes |
 | Token *values* in `globals.css` | Cool near-white/near-black palette; target is warm ground `#D7D7D0` + ink + cream | New values, same architecture | COMPLETE |
 | `tailwind.config.ts` type scale | Sans-only, no serif display role | Serif display + Geist-style sans + mono | COMPLETE |
+| `Loader.tsx` (first-load intro curtain) | Removed at the user's request — a dark full-viewport panel that split open like doors over the already-rendered page on every full load. Presentational only, never tied to real load state. | None; the page paints straight to the hero | COMPLETE — unmounted from `(marketing)/layout.tsx`, file kept on disk, no importer remains. `e2e/loader.spec.ts` inverted into a guard that nothing covers the page on load. |
 | `Container.tsx` widths | 1760px / 24–48px gutters | 1512px / 120px desktop, 24px mobile | COMPLETE |
 
 **Deletion policy.** Files are unmounted and left on disk rather than deleted,

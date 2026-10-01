@@ -6,6 +6,7 @@ import { Container } from "@/components/ui/Container";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Reveal } from "@/components/ui/Reveal";
 import { MagneticButton } from "@/components/ui/MagneticButton";
+import { AnimatedChars } from "@/components/ui/AnimatedChars";
 import { useDict } from "@/lib/i18n/context";
 import { track } from "@/lib/chatbot";
 
@@ -37,9 +38,11 @@ export function PricingEstimateCTA() {
                 <Link
                   href="/diagnostic"
                   onClick={() => track("pricing_diagnostic_clicked", { source: "estimate_cta" })}
-                  className="group inline-flex items-center gap-2 rounded bg-modus px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus hover:bg-modus-light"
+                  data-chars-root=""
+                  className="group group/cta relative inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-medium text-paper transition-colors duration-200 ease-modus"
                 >
-                  {t.cta}
+                  <span data-chars-bg className="bg-modus group-hover/cta:bg-modus-light" aria-hidden="true" />
+                  <AnimatedChars text={t.cta} />
                   <ArrowRight
                     className="h-4 w-4 transition-transform duration-200 ease-modus group-hover:translate-x-0.5"
                     strokeWidth={1.75}

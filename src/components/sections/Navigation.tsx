@@ -9,6 +9,7 @@ import { WideBleed } from "@/components/ui/Container";
 import { Logo, LogoTile } from "@/components/ui/Logo";
 import { LogoLockup } from "@/components/ui/LogoLockup";
 import { NavUtilityMenu } from "@/components/ui/NavUtilityMenu";
+import { AnimatedChars } from "@/components/ui/AnimatedChars";
 import { ClientUserButton } from "@/components/client/ClientUserButton";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
 import { MarketingMobileNav } from "@/components/sections/MarketingMobileNav";
@@ -93,11 +94,16 @@ export function Navigation() {
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
+                  // Text link: character roll only. No background layer —
+                  // adding a surface to a plain nav link purely to carry
+                  // the inset animation would change the navigation's
+                  // appearance, which this pass must not do.
+                  data-chars-root=""
                   className={`text-[13px] transition-colors ${
                     active ? "text-ink" : "text-graphite hover:text-ink"
                   }`}
                 >
-                  {link.label}
+                  <AnimatedChars text={link.label} />
                 </Link>
               );
             })}
