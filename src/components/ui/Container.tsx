@@ -15,7 +15,12 @@ export function Container({
 }) {
   return (
     <div
-      className={`mx-auto w-full max-w-[1760px] px-6 sm:px-8 md:px-10 lg:px-12 ${className}`}
+      // Measured reference geometry: 1512px maximum, 120px desktop
+      // gutters, 24px mobile. The intermediate steps are interpolation
+      // between those two measured ends, not invented breakpoints —
+      // mobile holds 24px to the `sm` boundary, then ramps to the full
+      // 120px once there is room for it at `xl`.
+      className={`mx-auto w-full max-w-site px-6 sm:px-10 md:px-14 lg:px-20 xl:px-[120px] ${className}`}
     >
       {children}
     </div>

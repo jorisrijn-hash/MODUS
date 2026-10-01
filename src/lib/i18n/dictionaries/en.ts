@@ -711,10 +711,17 @@ export const en = {
 
   home: {
     hero: {
-      label: "Improvement Infrastructure",
+      label: "Business, without the friction",
       processLabel: "Observe · Diagnose · Implement · Measure",
-      headline: "We improve how businesses work.",
-      body: "MODUS continuously identifies what is holding your business back, implements the right improvements, and measures the results. Built for businesses juggling multiple locations, high customer volume and one too many disconnected systems.",
+      // Specified by the rebuild mandate (section 5) and matching the
+      // MODUS homepage study. `headlineLines` carries the deliberate
+      // two-line desktop break as data rather than letting it fall out of
+      // whatever width the container happens to be; `headline` is kept as
+      // the flat string for metadata and for anything that needs one
+      // sentence.
+      headline: "Find the friction. Move forward.",
+      headlineLines: ["Find the friction.", "Move forward."],
+      body: "MODUS connects the dots between your people, processes and tools. See what holds you back, and improve what actually matters.",
       ctaPrimary: "Run a Diagnostic",
       ctaSecondary: "See How It Works",
       rotatingPrefix: "Currently examining:",
@@ -727,6 +734,71 @@ export const en = {
         "DISCONNECTED SYSTEMS",
         "MISSED OPPORTUNITIES",
       ],
+    },
+    // Supplied verbatim by the user. The five-line desktop composition is
+    // deliberate — the line breaks are the composition, not an accident of
+    // container width — so the lines are stored as data and rendered as
+    // explicit blocks rather than being re-wrapped by the browser.
+    manifesto: {
+      lines: [
+        "Most businesses don’t need more tools.",
+        "They need to see what is slowing them down.",
+        "Where time, money and attention are being lost.",
+        "MODUS finds the friction, fixes what matters,",
+        "and keeps improving what comes next.",
+      ],
+    },
+    // Section 02. Three story steps beside the real 3D architecture scene.
+    // Copy follows the MODUS homepage study; it describes how the work is
+    // structured and makes no outcome claim.
+    stack: {
+      label: "02 / Where we sit",
+      headingLines: ["A clearer view.", "A better way to work."],
+      intro:
+        "Between the way your business works today and what it could become. MODUS brings the whole picture together.",
+      steps: [
+        {
+          id: "diagnose",
+          eyebrow: "01 / Diagnose",
+          heading: "See what is slowing you down.",
+          body: "Start with your business. Map the friction across processes, systems and everyday work.",
+        },
+        {
+          id: "improve",
+          eyebrow: "02 / Improve",
+          heading: "Fix what matters.",
+          body: "Turn insight into focused changes, built around the work you actually do.",
+        },
+        {
+          id: "evolve",
+          eyebrow: "03 / Evolve",
+          heading: "Keep moving forward.",
+          body: "Keep learning from your operation and improve what comes next.",
+        },
+      ],
+      diagram: {
+        heading: {
+          team: "Your business",
+          improvements: "Focused improvements",
+          insight: "Diagnostic insight",
+          identity: "MODUS",
+          production: "Your everyday operation",
+          "category.sales": "Sales",
+          "category.operations": "Operations",
+          "category.finance": "Finance",
+          "category.service": "Service",
+          "category.tools": "Tools",
+        },
+        support: {
+          team: "People, priorities and decisions",
+          improvements: "Better processes. Connected systems.",
+          insight: "A shared picture of the friction",
+          production: "The work behind the work",
+        },
+        // Read by assistive technology in place of the canvas.
+        description:
+          "A layered diagram of a business: your business at the top, focused improvements and diagnostic insight in the middle alongside the MODUS identity, the business areas MODUS connects — sales, operations, finance, service and tools — and your everyday operation at the base.",
+      },
     },
     diagnosticEntry: {
       label: "Start Here",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { getInitialLocale } from "@/lib/i18n/server";
@@ -22,13 +22,31 @@ import "./globals.css";
 // fifth pathname check that could be forgotten again. ConsentBanner is
 // the one that legitimately stays global — see its own note below.
 
-const sans = Inter({
+// Display face. The reference uses Signifier; no licensed Signifier asset
+// is supplied in this repository, and the reference's own public font file
+// is a trial build whose public availability grants no redistribution
+// right. Noto Serif is the mandate's named fallback and is what actually
+// loads here — this is a documented substitution, not Signifier.
+//
+// 400 is the display weight (the reference's hero is weight 400); 500 is
+// carried for the diagram headings that need a touch more presence at
+// small optical sizes.
+const serif = Noto_Serif({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+  weight: ["400", "500"],
+});
+
+// Supporting type, per the mandate: Geist and a suitable monospace face.
+// Replaces Inter / IBM Plex Mono.
+const sans = Geist({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
 });
 
-const mono = IBM_Plex_Mono({
+const mono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",
@@ -110,7 +128,7 @@ export default async function RootLayout({
     <html
       lang={initialLocale}
       data-theme={initialTheme}
-      className={`${sans.variable} ${mono.variable}`}
+      className={`${serif.variable} ${sans.variable} ${mono.variable}`}
     >
       <body>
         <script

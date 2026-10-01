@@ -3,7 +3,6 @@ import { Chatbot } from "@/components/chatbot/Chatbot";
 import { Loader } from "@/components/Loader";
 import { LanguagePrompt } from "@/components/language/LanguagePrompt";
 import { LenisProvider } from "@/lib/motion/LenisProvider";
-import { MarketingFluidField } from "@/components/motion/MarketingFluidField";
 import { PageTransition } from "@/components/motion/PageTransition";
 
 /**
@@ -32,7 +31,23 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   return (
     <LenisProvider>
       <Loader />
-      <MarketingFluidField />
+      {/*
+       * `MarketingFluidField` was mounted here. It is gone, not disabled.
+       *
+       * The Antimetal rebuild mandate lists "fluid/blob backgrounds and
+       * decorative effects" as replaceable presentation, specifies the
+       * hero point cloud in their place, and says explicitly not to add
+       * competing effects — a site-wide ambient fluid wash behind a scene
+       * whose whole job is to be the one focal object is exactly such a
+       * competition.
+       *
+       * This retires `fluidSimGL.ts` (a real Stable-Fluids simulation
+       * built in the previous checkpoint and still awaiting review). The
+       * user confirmed the replacement explicitly. The files stay on disk
+       * as dead code rather than being deleted, and the pre-rebuild state
+       * is recoverable from commit 643cfad. See
+       * MODUS_VISUAL_RESET_AUDIT.md.
+       */}
       <Navigation />
       <PageTransition>{children}</PageTransition>
       <Chatbot />

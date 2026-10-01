@@ -60,50 +60,95 @@ const config: Config = {
         },
       },
       fontFamily: {
+        // Display. No Signifier licence is supplied anywhere in this
+        // repository, and the reference's own public font file is a trial
+        // asset whose availability grants no redistribution right — so
+        // this is the mandate's explicit fallback, Noto Serif, and is
+        // labelled as a fallback rather than passed off as Signifier.
+        serif: ["var(--font-serif)", "Noto Serif", "Georgia", "serif"],
         sans: ["var(--font-sans)", "Helvetica Neue", "Arial", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       fontSize: {
-        // Reserved for Checkpoint 4's homepage work — not used anywhere
-        // yet. Fluid between a large-mobile floor and the brief's
-        // "large editorial typography" ceiling.
+        // Scales below are the measured reference values, expressed
+        // through the Osmo `--sf` unit so they scale with the design
+        // width instead of jumping at breakpoints. At 1440px, `--sf` is
+        // exactly 1px, so `calc(54 * var(--sf))` renders at precisely the
+        // researched 54px. Mobile values are recomposed, not just scaled.
+        //
+        // Hero: desktop 54/59.4, mobile 40/44. The MODUS draft hero sits
+        // at 58/66; the research value is the fidelity reference, so this
+        // takes the researched size and keeps the draft's deliberate
+        // two-line break via explicit markup rather than font size.
+        "display-hero": [
+          "max(40px, calc(54 * var(--sf)))",
+          { lineHeight: "1.1", letterSpacing: "-0.015em" },
+        ],
+        // Section heading 48/52.8.
+        "display-section": [
+          "max(32px, calc(48 * var(--sf)))",
+          { lineHeight: "1.1", letterSpacing: "-0.01em" },
+        ],
+        // Subheading 34/42.
+        "display-sub": [
+          "max(24px, calc(34 * var(--sf)))",
+          { lineHeight: "1.24", letterSpacing: "-0.005em" },
+        ],
+        // Lead 24/28.8 desktop, 20/24 mobile.
+        lead: [
+          "max(18px, calc(24 * var(--sf)))",
+          { lineHeight: "1.2", letterSpacing: "0em" },
+        ],
+        // Technical label 14/21, used with wide tracking in mono.
+        label: [
+          "max(11px, calc(13 * var(--sf)))",
+          { lineHeight: "1.5", letterSpacing: "0.1em" },
+        ],
+
+        // --- Retained for not-yet-migrated routes -----------------------
+        // Still referenced by pages this rebuild has not reached yet.
+        // Removing them now would break those routes before their
+        // replacement exists; the mandate requires migrating consumers
+        // first. Tracked in MODUS_VISUAL_RESET_AUDIT.md.
         "display-xl": [
           "clamp(3.25rem, 2.1rem + 3.9vw, 6.25rem)",
           { lineHeight: "1.0", letterSpacing: "-0.02em" },
         ],
-        // H1 72/80 -0.02em — same ceiling as before (4.5rem/72px), now
-        // fluid below it instead of a fixed size cut off by breakpoints.
-        // Existing usages get graceful in-between scaling for free; the
-        // floor (2.75rem/44px) is comfortably above what these headings
-        // already rendered at on a 390px Playwright check.
         "display-lg": [
           "clamp(2.75rem, 2.05rem + 2.7vw, 4.5rem)",
           { lineHeight: "1.08", letterSpacing: "-0.02em" },
         ],
-        // H2 48/56 -0.01em
         "display-md": [
           "clamp(2rem, 1.6rem + 1.6vw, 3rem)",
           { lineHeight: "1.15", letterSpacing: "-0.01em" },
         ],
-        // H3 32/40 0em
         "display-sm": [
           "clamp(1.5rem, 1.3rem + 0.8vw, 2rem)",
           { lineHeight: "1.25", letterSpacing: "0em" },
         ],
       },
       spacing: {
-        // Reserved editorial section-rhythm tokens for Checkpoints 3+ —
-        // not consumed by any existing component yet. Existing sections
-        // keep their current ad hoc py-* values until each is actually
-        // redesigned; these exist so that redesign work has a shared
-        // scale to reach for instead of inventing new numbers per page.
-        gutter: "1.5rem",
+        gutter: "var(--gutter-mobile)",
+        "gutter-lg": "var(--gutter-desktop)",
+        // Story-column geometry from the measured reference, in `--sf`
+        // units so it tracks the design width.
+        story: "calc(460 * var(--sf))",
+        "scene-gap": "calc(64 * var(--sf))",
         "section-sm": "5rem",
         section: "7rem",
         "section-lg": "9rem",
         "section-xl": "11rem",
       },
       borderRadius: {
+        // Deliberately UNCHANGED from the pre-rebuild values. The
+        // reference's technical cards are square and its CTAs are pills,
+        // but `rounded` (DEFAULT) is used by ~every button and panel in
+        // /app and /private, which this rebuild has not migrated yet.
+        // Zeroing it here would square those surfaces off before their
+        // replacement exists — the unscoped cascade edit the mandate
+        // warns against. New marketing components state `rounded-none`
+        // or `rounded-full` explicitly instead. Revisit at Checkpoint G
+        // once the product shells are migrated.
         none: "0px",
         sm: "2px",
         DEFAULT: "3px",
@@ -112,6 +157,10 @@ const config: Config = {
       },
       maxWidth: {
         content: "1280px",
+        site: "var(--site-container)",
+        // Hero text 738px, lead 600px — measured.
+        "hero-text": "calc(738 * var(--sf))",
+        "hero-lead": "calc(600 * var(--sf))",
       },
       transitionTimingFunction: {
         modus: "cubic-bezier(0.16, 1, 0.3, 1)",

@@ -34,6 +34,39 @@ const taglineSize: Record<Size, string> = {
   xl: "text-[13px]",
 };
 
+/**
+ * The supplied mark as a green rounded tile with white figure — the form
+ * in `assets/modus-logo-source.png`, which is preserved unchanged at
+ * `/public/brand/modus-logo-source.png` (1362×1368, effectively square).
+ *
+ * THIS SVG IS A RECONSTRUCTION, not the original vector. No original SVG
+ * was supplied. It is traced from the raster's proportions — a centred
+ * square with four detached orthogonal bars, white on `#1E3B2E`, on a
+ * rounded-square tile — and should be replaced the moment an authoritative
+ * vector export exists. It is not presented as the official asset.
+ *
+ * The figure is deliberately the same geometry `LogoMark` below already
+ * drew; that component was already correct and is not an invented M or a
+ * three-bar substitute. Only the tile and the white-on-green treatment
+ * are new.
+ */
+export function LogoTile({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden="true" focusable="false">
+      <rect width="100" height="100" rx="22" fill="#1E3B2E" />
+      <g fill="#FFFFFF">
+        {/* centre square */}
+        <rect x="43" y="43" width="14" height="14" />
+        {/* four detached orthogonal bars */}
+        <rect x="47.5" y="16" width="5" height="22" />
+        <rect x="47.5" y="62" width="5" height="22" />
+        <rect x="16" y="47.5" width="22" height="5" />
+        <rect x="62" y="47.5" width="22" height="5" />
+      </g>
+    </svg>
+  );
+}
+
 export function LogoMark({
   tone = "dark",
   className = "",

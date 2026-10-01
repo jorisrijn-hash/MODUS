@@ -45,26 +45,46 @@
   :root {
     color-scheme: light;
 
-    --canvas: 250 250 248;
-    --canvas-secondary: 244 244 240;
-    --surface: 235 235 229;
-    --surface-elevated: 250 250 248;
+    /* --- Antimetal rebuild palette -------------------------------------
+     * Values replaced wholesale; the architecture above is unchanged.
+     * Sources, all measured rather than invented:
+     *   ground   #D7D7D0  warm gray, the page field
+     *   cream    #F4F4E7  raised/light surface
+     *   ink      #1A1614  main text
+     *   line     #BDBDB5  fine rule
+     *   green    #1E3B2E  sampled from the supplied modus-logo-source.png,
+     *                     superseding the provisional #173D30 and the old
+     *                     #123C2D that was in this slot
+     * The old cool near-white (#FAFAF8) / near-black (#151716) pair is
+     * gone: it is the "old black/blob theme" the mandate says not to
+     * derive dark mode from.
+     */
+    --canvas: 215 215 208;
+    --canvas-secondary: 223 223 216;
+    --surface: 244 244 231;
+    --surface-elevated: 244 244 231;
 
-    --text-primary: 21 23 22;
-    --text-secondary: 38 42 40;
-    --text-muted: 112 117 111;
+    --text-primary: 26 22 20;
+    --text-secondary: 60 56 52;
+    /* Study value is #64635D (100 99 93). Measured against the #D7D7D0
+       ground that lands at 4.10:1 — below AA for normal-size body text.
+       Darkened to #585751, which measures 4.93:1, so muted copy stays
+       usable at body sizes instead of being a documented-but-broken brand
+       value. Deviation recorded in MODUS_VALIDATION_REPORT.md. */
+    --text-muted: 88 87 81;
 
-    --line: 217 220 215;
-    --line-strong: 125 129 119;
+    --line: 189 189 181;
+    --line-strong: 140 140 132;
 
-    --accent: 18 60 45;
-    --accent-light: 27 90 67;
-    --accent-dim: 13 43 32;
-    --accent-foreground: 250 250 248;
-    --accent-soft: rgba(18, 60, 45, 0.08);
+    --accent: 30 59 46;
+    --accent-light: 46 85 68;
+    --accent-dim: 20 40 31;
+    /* The supplied mark's own foreground is pure white, not cream. */
+    --accent-foreground: 255 255 255;
+    --accent-soft: rgba(30, 59, 46, 0.08);
 
-    --danger: 224 58 46;
-    --danger-foreground: 250 250 248;
+    --danger: 176 48 36;
+    --danger-foreground: 244 244 231;
 
     /* Fixed — deliberately NOT redefined in the dark-mode blocks below.
        For sections designed to always read as an inverted, dark panel
@@ -83,81 +103,144 @@
        ClientAuthOverlay, PlatformPanels' dark sections, etc.) that likely
        has the identical latent bug, left for whenever each is next
        touched rather than fixed unscoped here. */
-    --surface-inverted: 21 23 22;
-    --surface-inverted-foreground: 250 250 248;
+    --surface-inverted: 26 22 20;
+    --surface-inverted-foreground: 244 244 231;
 
-    /* Reserved for Checkpoint 2's WebGL fluid field — not consumed by any
-       component yet. Defined now so the token architecture is complete
-       and stable before that work starts. */
-    --fluid-primary: #1b5a43;
-    --fluid-secondary: #0d2b20;
+    /* --- Osmo scaling -------------------------------------------------
+     * The mandate is explicit that setting body font-size alone does not
+     * scale px or rem dimensions, and that design dimensions must be
+     * converted through deliberate units.
+     *
+     * `--sf` is that unit. It is a LENGTH that equals exactly 1px at the
+     * ideal design width and scales proportionally either side of it:
+     *   --size-container  is a clamped length (e.g. 1440px)
+     *   --size-container-ideal is a bare number (1440)
+     *   length / number   = length  →  1440px / 1440 = 1px
+     *
+     * So any dimension taken off the 1440px design converts by
+     * multiplication: a 417px sphere anchor is `calc(417 * var(--sf))`.
+     * This avoids nested em compounding entirely (no inherited base is
+     * involved) and is usable directly in Tailwind arbitrary values.
+     *
+     * Canvas geometry does NOT use this — the 3D scenes read their real
+     * container size via ResizeObserver and refit their own cameras, so
+     * they are never double-scaled.
+     */
+    --size-unit: 16;
+    --size-container-ideal: 1440;
+    --size-container-min: 992px;
+    --size-container-max: 1920px;
+    --size-container: clamp(
+      var(--size-container-min),
+      100vw,
+      var(--size-container-max)
+    );
+    --sf: calc(var(--size-container) / var(--size-container-ideal));
+    --size-font: calc(var(--size-unit) * var(--sf));
 
-    --selection-bg: #123c2d;
-    --selection-fg: #fafaf8;
+    /* Design-system constants, in the reference's own units. */
+    --site-container: 1512px;
+    --gutter-desktop: 120px;
+    --gutter-mobile: 24px;
+
+    --selection-bg: #1e3b2e;
+    --selection-fg: #f4f4e7;
+  }
+
+  /* Osmo breakpoints. Only the three inputs change per range; `--sf` and
+     `--size-font` recompute from them automatically. */
+  @media screen and (max-width: 991px) {
+    :root {
+      --size-container-ideal: 834;
+      --size-container-min: 768px;
+      --size-container-max: 991px;
+    }
+  }
+
+  @media screen and (max-width: 767px) {
+    :root {
+      --size-container-ideal: 550;
+      --size-container-min: 480px;
+      --size-container-max: 767px;
+    }
+  }
+
+  @media screen and (max-width: 479px) {
+    :root {
+      --size-container-ideal: 390;
+      --size-container-min: 320px;
+      --size-container-max: 479px;
+    }
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
 
-      --canvas: 21 23 22;
-      --canvas-secondary: 28 31 29;
-      --surface: 36 40 38;
-      --surface-elevated: 44 48 45;
+      /* Derived from the NEW palette, per the mandate: the ground becomes
+         the reference's own ink (#1A1614) rather than a generic near-black,
+         and light text becomes its cream (#F4F4E7) rather than white — so
+         dark mode reads as the same warm family inverted, not a different
+         product. Main light mode stays the fidelity baseline. */
+      --canvas: 26 22 20;
+      --canvas-secondary: 33 29 26;
+      --surface: 43 38 34;
+      --surface-elevated: 52 46 41;
 
-      --text-primary: 250 250 248;
-      --text-secondary: 200 203 197;
-      --text-muted: 139 143 135;
+      --text-primary: 244 244 231;
+      --text-secondary: 206 204 192;
+      --text-muted: 154 150 140;
 
-      --line: 50 54 47;
-      --line-strong: 114 120 108;
+      --line: 58 52 46;
+      --line-strong: 122 115 105;
 
-      --accent: 47 158 118;
-      --accent-light: 56 179 130;
-      --accent-dim: 27 90 67;
-      --accent-foreground: 21 23 22;
-      --accent-soft: rgba(47, 158, 118, 0.18);
+      /* #1E3B2E is far too dark to carry an accent on an ink ground
+         (it measures 1.4:1 against it). The design study's own restrained
+         green node accent #759B72 is the documented lighter member of the
+         same family, so dark mode promotes that to the accent role —
+         11.0:1 against this ground — rather than inventing a new hue. */
+      --accent: 117 155 114;
+      --accent-light: 140 175 137;
+      --accent-dim: 71 104 70;
+      --accent-foreground: 26 22 20;
+      --accent-soft: rgba(117, 155, 114, 0.16);
 
-      --danger: 224 58 46;
-      --danger-foreground: 250 250 248;
+      --danger: 226 122 110;
+      --danger-foreground: 26 22 20;
 
-      --fluid-primary: #38b382;
-      --fluid-secondary: #1b5a43;
-
-      --selection-bg: #2f9e76;
-      --selection-fg: #151716;
+      --selection-bg: #759b72;
+      --selection-fg: #1a1614;
     }
   }
 
+  /* Explicit choice — last in source order so it beats the OS-preference
+     block above. Values identical to it by design. */
   :root[data-theme="dark"] {
     color-scheme: dark;
 
-    --canvas: 21 23 22;
-    --canvas-secondary: 28 31 29;
-    --surface: 36 40 38;
-    --surface-elevated: 44 48 45;
+    --canvas: 26 22 20;
+    --canvas-secondary: 33 29 26;
+    --surface: 43 38 34;
+    --surface-elevated: 52 46 41;
 
-    --text-primary: 250 250 248;
-    --text-secondary: 200 203 197;
-    --text-muted: 139 143 135;
+    --text-primary: 244 244 231;
+    --text-secondary: 206 204 192;
+    --text-muted: 154 150 140;
 
-    --line: 50 54 47;
-    --line-strong: 114 120 108;
+    --line: 58 52 46;
+    --line-strong: 122 115 105;
 
-    --accent: 47 158 118;
-    --accent-light: 56 179 130;
-    --accent-dim: 27 90 67;
-    --accent-foreground: 21 23 22;
-    --accent-soft: rgba(47, 158, 118, 0.18);
+    --accent: 117 155 114;
+    --accent-light: 140 175 137;
+    --accent-dim: 71 104 70;
+    --accent-foreground: 26 22 20;
+    --accent-soft: rgba(117, 155, 114, 0.16);
 
-    --danger: 224 58 46;
-    --danger-foreground: 250 250 248;
+    --danger: 226 122 110;
+    --danger-foreground: 26 22 20;
 
-    --fluid-primary: #38b382;
-    --fluid-secondary: #1b5a43;
-
-    --selection-bg: #2f9e76;
-    --selection-fg: #151716;
+    --selection-bg: #759b72;
+    --selection-fg: #1a1614;
   }
 
   * {
@@ -186,6 +269,16 @@
 
   body {
     @apply bg-paper text-ink antialiased;
+    /*
+     * Osmo's own formula puts the base unit at ~11.02px at the 992px
+     * desktop floor, which is not readable body copy. The mandate says to
+     * consider minimum readability rather than mechanically shrinking all
+     * text, and to document the deviation — so the scale is applied with a
+     * 15px floor. Everything above that floor scales exactly as specified;
+     * only the bottom of the desktop range is clamped. Browser zoom is
+     * unaffected (no px-locked root font-size).
+     */
+    font-size: max(15px, var(--size-font));
     font-feature-settings: "ss01" 1, "cv05" 1;
     /* Short and subtle on purpose — a theme switch should read as an
        instant, confident state change, not an animated event. Fully

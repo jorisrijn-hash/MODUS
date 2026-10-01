@@ -694,10 +694,15 @@ export const nl: Dictionary = {
 
   home: {
     hero: {
-      label: "Verbeterinfrastructuur",
+      label: "Zakendoen, zonder frictie",
       processLabel: "Observeren · Diagnosticeren · Implementeren · Meten",
-      headline: "Wij verbeteren hoe bedrijven werken.",
-      body: "MODUS brengt continu in kaart wat je bedrijf tegenhoudt, voert de juiste verbeteringen door en meet de resultaten. Gebouwd voor bedrijven met meerdere vestigingen, veel klantcontact en net iets te veel losse systemen.",
+      // "Friction" has a direct, idiomatic Dutch equivalent (frictie /
+      // wrijving) and "verder" carries the same forward sense as "move
+      // forward" without becoming a longer clause — so both lines keep
+      // their short, declarative shape at the same two-line break.
+      headline: "Vind de frictie. Ga verder.",
+      headlineLines: ["Vind de frictie.", "Ga verder."],
+      body: "MODUS verbindt je mensen, processen en systemen. Zie wat je tegenhoudt, en verbeter wat er echt toe doet.",
       ctaPrimary: "Start een Diagnose",
       ctaSecondary: "Bekijk Hoe Het Werkt",
       rotatingPrefix: "Op dit moment in analyse:",
@@ -710,6 +715,66 @@ export const nl: Dictionary = {
         "LOSSE SYSTEMEN",
         "GEMISTE KANSEN",
       ],
+    },
+    // Translation of the supplied English manifesto. Line breaks are kept
+    // at the same five points: each Dutch line is close enough in length
+    // that the centred composition holds without re-balancing.
+    manifesto: {
+      lines: [
+        "De meeste bedrijven hebben niet méér tools nodig.",
+        "Ze moeten zien wat hen vertraagt.",
+        "Waar tijd, geld en aandacht verloren gaan.",
+        "MODUS vindt de frictie, lost op wat ertoe doet,",
+        "en blijft verbeteren wat daarna komt.",
+      ],
+    },
+    stack: {
+      label: "02 / Waar wij zitten",
+      headingLines: ["Een helderder beeld.", "Een betere manier van werken."],
+      intro:
+        "Tussen hoe je bedrijf vandaag werkt en wat het kan worden. MODUS brengt het hele plaatje samen.",
+      steps: [
+        {
+          id: "diagnose",
+          eyebrow: "01 / Diagnosticeren",
+          heading: "Zie wat je vertraagt.",
+          body: "Begin bij je bedrijf. Breng de frictie in kaart in processen, systemen en dagelijks werk.",
+        },
+        {
+          id: "improve",
+          eyebrow: "02 / Verbeteren",
+          heading: "Los op wat ertoe doet.",
+          body: "Vertaal inzicht naar gerichte veranderingen, gebouwd rond het werk dat je echt doet.",
+        },
+        {
+          id: "evolve",
+          eyebrow: "03 / Doorontwikkelen",
+          heading: "Blijf vooruitgaan.",
+          body: "Blijf leren van je operatie en verbeter wat daarna komt.",
+        },
+      ],
+      diagram: {
+        heading: {
+          team: "Je bedrijf",
+          improvements: "Gerichte verbeteringen",
+          insight: "Diagnostisch inzicht",
+          identity: "MODUS",
+          production: "Je dagelijkse operatie",
+          "category.sales": "Verkoop",
+          "category.operations": "Operatie",
+          "category.finance": "Financiën",
+          "category.service": "Service",
+          "category.tools": "Tools",
+        },
+        support: {
+          team: "Mensen, prioriteiten en beslissingen",
+          improvements: "Betere processen. Verbonden systemen.",
+          insight: "Een gedeeld beeld van de frictie",
+          production: "Het werk achter het werk",
+        },
+        description:
+          "Een gelaagd diagram van een bedrijf: je bedrijf bovenaan, gerichte verbeteringen en diagnostisch inzicht in het midden naast de MODUS-identiteit, de bedrijfsonderdelen die MODUS verbindt — verkoop, operatie, financiën, service en tools — en je dagelijkse operatie aan de basis.",
+      },
     },
     diagnosticEntry: {
       label: "Begin Hier",

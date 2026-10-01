@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { Menu } from "lucide-react";
 import { WideBleed } from "@/components/ui/Container";
-import { Logo, LogoMark } from "@/components/ui/Logo";
+import { Logo, LogoTile } from "@/components/ui/Logo";
+import { LogoLockup } from "@/components/ui/LogoLockup";
 import { NavUtilityMenu } from "@/components/ui/NavUtilityMenu";
 import { ClientUserButton } from "@/components/client/ClientUserButton";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
@@ -46,7 +47,12 @@ export function Navigation() {
     { label: dict.nav.results, href: "/results" },
     { label: dict.nav.company, href: "/company" },
   ];
-  const [scrolled, setScrolled] = useState(false);
+  // The old `scrolled` state (which swapped the header to an opaque bar
+  // with a bottom rule and shrank its height) is gone. The reference's
+  // header does not react to scroll at all — the only scroll reaction is
+  // the centre lockup's collapse, which owns its own listener inside
+  // LogoLockup. Keeping a second scroll listener here to animate chrome
+  // that no longer changes would be dead work on every frame.
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -57,48 +63,27 @@ export function Navigation() {
     setMobileOpen(false);
   }
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     // Fragment, not the <header> itself, is the outermost element —
     // MarketingMobileNav must NOT be a descendant of <header> (see below
     // for why this matters, it's not arbitrary).
     <>
-      <header
-        className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-300 ease-modus ${
-          scrolled || mobileOpen
-            ? "border-line bg-paper/90 backdrop-blur-sm"
-            : "border-transparent bg-transparent"
-        }`}
-      >
+      {/*
+       * Restrained capsule navigation, per the reference: separate quiet
+       * pills floating over the ground rather than one opaque bar with a
+       * bottom rule. `backdrop-blur` lives on the capsules, never on
+       * <header> itself — see the containing-block note further down,
+       * which is exactly why that distinction matters here.
+       */}
+      <header className="fixed inset-x-0 top-0 z-50">
       <WideBleed>
-        <div
-          className={`flex items-center justify-between transition-all duration-300 ease-modus ${
-            scrolled ? "h-14" : "h-20"
-          }`}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center gap-3"
-          >
-            <Link href="/" aria-label="MODUS home" className="flex items-center gap-2.5">
-              <LogoMark className="h-5 w-5" />
-              <Logo variant="wordmark" />
-            </Link>
-          </motion.div>
-
+        <div className="relative flex h-20 items-center justify-between">
+          {/* Left: information links. */}
           <motion.nav
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden items-center gap-8 lg:flex"
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="hidden items-center gap-7 rounded-full border border-line/70 bg-surface/80 px-6 py-2.5 backdrop-blur-sm lg:flex"
             aria-label="Primary"
           >
             {links.map((link) => {
@@ -118,11 +103,32 @@ export function Navigation() {
             })}
           </motion.nav>
 
+          {/* Mobile-only brand, left-aligned: the centred capsule is a
+              desktop composition and would collide with the menu trigger
+              at 390px. */}
+          <Link href="/" aria-label="MODUS" className="flex items-center gap-2.5 lg:hidden">
+            <LogoTile className="h-[22px] w-[22px]" />
+            <Logo variant="wordmark" />
+          </Link>
+
+          {/* Centre: the collapsing lockup. Absolutely positioned and
+              translated about its own centre, so condensing it never
+              shifts the two groups either side. */}
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="hidden lg:block"
+          >
+            <LogoLockup className="top-1/2 -translate-y-1/2" />
+          </motion.div>
+
+          {/* Right: account, preferences, and the real diagnostic action. */}
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 rounded-full border border-line/70 bg-surface/80 py-1.5 pl-3 pr-1.5 backdrop-blur-sm lg:gap-3"
           >
             <NavUtilityMenu className="hidden lg:block" />
             <ClientUserButton className="hidden lg:flex" />
@@ -146,8 +152,8 @@ export function Navigation() {
 
       {/*
        * Deliberately a sibling of <header>, not nested inside it. A real
-       * bug found live (Checkpoint 3): <header> gets `backdrop-blur-sm`
-       * (a `backdrop-filter`) applied whenever `mobileOpen` is true —
+       * bug found live (Checkpoint 3): <header> then carried
+       * `backdrop-blur-sm` (a `backdrop-filter`) —
        * and per the CSS spec, `backdrop-filter` (like `transform` or
        * `filter`) creates a new *containing block* for any
        * `position: fixed` descendant. With MarketingMobileNav previously

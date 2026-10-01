@@ -1,8 +1,8 @@
 import { Hero } from "@/components/sections/Hero";
-import { CentralInsight } from "@/components/sections/CentralInsight";
-import { ModusProcessSection } from "@/components/sections/ModusProcessSection";
+import { Manifesto } from "@/components/sections/Manifesto";
+import { DiagnosticEntry } from "@/components/sections/DiagnosticEntry";
+import { StackSection } from "@/components/stack/StackSection";
 import { WhatModusSees } from "@/components/sections/WhatModusSees";
-import { BusinessXRaySection } from "@/components/sections/BusinessXRaySection";
 import { CapabilitiesPreview } from "@/components/sections/CapabilitiesPreview";
 import { CasesPreview } from "@/components/sections/CasesPreview";
 import { PlatformTeaser } from "@/components/sections/PlatformTeaser";
@@ -44,10 +44,29 @@ export default function Home() {
     <>
       <main>
         <Hero />
-        <CentralInsight />
-        <ModusProcessSection />
+        <Manifesto />
+        {/*
+         * `DiagnosticEntry` is back as its own section. The previous
+         * checkpoint had folded it into the hero; the Antimetal hero
+         * carries an eyebrow, headline, lead and actions only, and a form
+         * sitting inside it is what pulled that composition away from the
+         * reference.
+         *
+         * This is not a cosmetic move: the component owns the
+         * category-chip → `?hint=` entry-context behaviour that
+         * `e2e/diagnostic-checkpoint5.spec.ts` covers end to end. Keeping
+         * it on the page preserves that functional contract rather than
+         * quietly dropping a tested behaviour to suit a layout.
+         */}
+        <DiagnosticEntry />
+        {/* Section 02 — three story steps + the real 3D architecture
+            scene. Replaces ModusProcessSection and BusinessXRaySection on
+            the homepage: both told a flattened version of this same
+            layered story, and the mandate requires the desktop treatment
+            to be genuine 3D rather than flat cards. Those files are kept
+            on disk; see MODUS_VISUAL_RESET_AUDIT.md. */}
+        <StackSection />
         <WhatModusSees />
-        <BusinessXRaySection />
         <CapabilitiesPreview />
         <CasesPreview />
         <PlatformTeaser />
