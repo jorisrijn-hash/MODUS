@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# env files — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# database (local SQLite dev db)
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# playwright
+/test-results/
+/e2e-report/
+/e2e-artifacts/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

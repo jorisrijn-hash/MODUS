@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Local dev uses SQLite (zero-config, file-based, real embedded database —
+// not a JSON file). Swap to Postgres for production: change provider to
+// "postgresql" and point DATABASE_URL at a hosted instance (Railway, Neon,
+// Supabase, Vercel Postgres all work), then `npx prisma migrate deploy`.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Diagnostic {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  status          String @default("NEW") // NEW, REVIEWING, REVIEWED, CONTACTED, QUALIFIED, CONVERTED, CLOSED
+  statusUpdatedAt DateTime @default(now())
+
+  // Business
+  companyName  String
+  website      String?
+  industry     String
+  employees    String
+  locations    String
+  revenueRange String?
+
+  // Operations
+  customerChannels        String // JSON array
+  enquiryHandling          String // JSON array
+  adminWorkload            String
+  processStandardization   Int
+  keyEmployeeDependency    String
+
+  // Systems
+  systems              String // JSON array
+  specificTools        String?
+  systemConnectivity   String
+  spreadsheetDependency String
+  automationUsage      String // JSON array
+
+  // Friction
+  frictionAreas       String // JSON array
+  primaryPainPoint    String
+  problemDescription  String
+  problemFrequency    String
+  impactAreas         String // JSON array
+
+  // Priorities
+  primaryInterest String?
+  priorities      String // JSON array
+  timing          String
+  decisionContext String?
+
+  // Contact
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  role           String?
+  privacyConsent Boolean @default(false)
+
+  // Preliminary (computed client-side at submission time, stored as-is)
+  preliminaryProfile  String // JSON
+  preliminarySignals  String // JSON
+
+  // Pricing — calculated deterministically server-side at submission time
+  // from the MODUS Pricing Model V1 (src/lib/pricing/engine.ts). Never
+  // overwritten by a later human review; reviewedEstimate*/finalProposal*
+  // are separate fields precisely so the original automatic estimate stays
+  // auditable against the pricing model version that produced it.
+  pricingVersion         String?
+  complexityScoreTotal   Int?
+  pricingBand            String?
+  implementationScope    String?
+  calculatedEstimateMin  Int?
+  calculatedEstimateMax  Int?
+  manualScopeRequired    Boolean @default(false)
+  pricingReasoning       String? // JSON array of internal-facing strings
+  // Qualitative levels only (low/moderate/high per dimension), JSON —
+  // the customer-facing "why this range" explanation reads from this, not
+  // by re-running the engine or exposing internal score numbers/weights.
+  pricingFactors         String?
+
+  // A high-entropy, purpose-built public capability token (NOT the row's
+  // own id/cuid — a cuid is unique but not designed as an unguessable
+  // secret, and reusing it would let anyone who ever saw an admin URL read
+  // this customer's profile back). Given to the browser once at submission
+  // time, stored in localStorage, and used by GET /api/context/[token] to
+  // resolve "does this visitor already have a MODUS profile" without any
+  // login. Null for diagnostics submitted before this existed.
+  contextToken           String? @unique
+
+  // Set later, from /private, once a human has reviewed the Diagnostic.
+  // Kept separate from the calculated* fields above by design.
+  reviewedEstimateMin    Int?
+  reviewedEstimateMax    Int?
+  finalProposalAmount    Int?
+  finalProposalNote      String?
+  // One-time implementation fee, kept separate from the monthly
+  // finalProposalAmount — see PRICING_CONFIG.initialImplementation
+  // (indicative €500-2,500, never shown publicly, admin-only by design).
+  finalImplementationFee Int?
+
+  // Set only by the admin "Send Proposal" action (never by the client
+  // patch schema accepting an arbitrary date) — gates GET /proposal/[token]:
+  // a draft finalProposalAmount is never visible at that public URL until
+  // this is explicitly set. Re-sending updates it, doesn't require it to
+  // be null first.
+  proposalSentAt DateTime?
+
+  // Source tracking
+  source    String? // e.g. "Homepage", "Chatbot", "Direct"
+  referrer  String?
+  utmSource String?
+  utmMedium String?
+  utmCampaign String?
+
+  notes           Note[]
+  activityEvents  ActivityEvent[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([email])
+}
+
+model Note {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  diagnosticId String
+  diagnostic   Diagnostic @relation(fields: [diagnosticId], references: [id], onDelete: Cascade)
+  author       String   @default("Admin")
+  body         String
+
+  @@index([diagnosticId])
+}
+
+model ActivityEvent {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  diagnosticId String
+  diagnostic   Diagnostic @relation(fields: [diagnosticId], references: [id], onDelete: Cascade)
+  label        String
+
+  @@index([diagnosticId])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  ip        String
+  success   Boolean
+
+  @@index([ip, createdAt])
+}

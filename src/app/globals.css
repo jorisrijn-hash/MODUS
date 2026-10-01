@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * MODUS semantic design tokens — Checkpoint 1 of the Master Redesign V2.
+   *
+   * These CSS custom properties are the single source of truth for color;
+   * tailwind.config.ts's color keys (paper/mineral/surface/ink/graphite/
+   * muted/line/modus/signal, plus the new surface-elevated/line-strong/
+   * accent-foreground/accent-soft/danger keys) all resolve to them, so
+   * every existing `bg-paper`/`text-ink`/`border-line`/etc. class across
+   * the codebase becomes theme-aware automatically — no component call
+   * site needs to change. See MODUS_REDESIGN_PLAN.md Section 16 and
+   * MODUS_REDESIGN_REPORT.md's Checkpoint 1 entry for the full rationale,
+   * the exact WCAG contrast numbers behind every dark-mode value below,
+   * and which values are exact reuses of existing brand hex vs. new
+   * technically-necessary tonal derivatives.
+   *
+   * Theme resolution has three states — light (default, this block),
+   * dark via OS preference with no explicit override (the
+   * prefers-color-scheme block below, guarded so an explicit "light"
+   * choice always wins), and dark via explicit choice
+   * (:root[data-theme="dark"], last in source order so it always wins
+   * regardless of OS preference). "system" and no data-theme attribute at
+   * all are treated identically — both fall through to the OS-preference
+   * block. This is a pure-CSS resolution with zero JS and zero flash;
+   * getInitialTheme() (src/lib/theme/server.ts) only exists to render the
+   * *explicit* choice server-side so the very first byte is already
+   * correct for a returning visitor.
+   *
+   * Values are space-separated RGB channels ("21 23 22"), not hex —
+   * Tailwind's documented pattern (tailwind.config.ts wires each one as
+   * `rgb(var(--x) / <alpha-value>)`) for a CSS-variable-backed color that
+   * still supports the `/NN` opacity modifier. A plain `var(--x)` hex
+   * reference was tried first and confirmed broken: Tailwind can't
+   * decompose an opaque var() string at build time, so it silently
+   * dropped every `/NN` modifier across all ~136 existing call sites
+   * (`bg-ink/40`, `bg-signal/8`, etc.) — caught by inspecting the
+   * compiled CSS output directly before this was treated as done, not
+   * assumed. `--accent-soft` stays a plain rgba() literal since nothing
+   * ever composes further opacity on top of it.
+   */
+  :root {
+    color-scheme: light;
+
+    --canvas: 250 250 248;
+    --canvas-secondary: 244 244 240;
+    --surface: 235 235 229;
+    --surface-elevated: 250 250 248;
+
+    --text-primary: 21 23 22;
+    --text-secondary: 38 42 40;
+    --text-muted: 112 117 111;
+
+    --line: 217 220 215;
+    --line-strong: 125 129 119;
+
+    --accent: 18 60 45;
+    --accent-light: 27 90 67;
+    --accent-dim: 13 43 32;
+    --accent-foreground: 250 250 248;
+    --accent-soft: rgba(18, 60, 45, 0.08);
+
+    --danger: 224 58 46;
+    --danger-foreground: 250 250 248;
+
+    /* Fixed — deliberately NOT redefined in the dark-mode blocks below.
+       For sections designed to always read as an inverted, dark panel
+       regardless of the site's own light/dark theme (the footer, and any
+       other genuinely "always-dark" composition) — a real bug found
+       while redesigning the footer this checkpoint: it used to hardcode
+       `bg-ink text-paper`, which worked before Checkpoint 1 (ink/paper
+       were flat hex, always dark/light respectively) but silently
+       INVERTED under a dark site theme once those became theme-relative
+       tokens (dark theme's `ink` is near-white, `paper` is near-black —
+       exactly backwards for a section meant to stay dark). Confirmed via
+       a live computed-style check before this fix, not assumed. Only the
+       shell components this checkpoint actually touches (Footer) were
+       converted — MODUS_REDESIGN_REPORT.md's Checkpoint 3 entry flags
+       every other pre-existing "always-dark" component (Philosophy,
+       ClientAuthOverlay, PlatformPanels' dark sections, etc.) that likely
+       has the identical latent bug, left for whenever each is next
+       touched rather than fixed unscoped here. */
+    --surface-inverted: 21 23 22;
+    --surface-inverted-foreground: 250 250 248;
+
+    /* Reserved for Checkpoint 2's WebGL fluid field — not consumed by any
+       component yet. Defined now so the token architecture is complete
+       and stable before that work starts. */
+    --fluid-primary: #1b5a43;
+    --fluid-secondary: #0d2b20;
+
+    --selection-bg: #123c2d;
+    --selection-fg: #fafaf8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+
+      --canvas: 21 23 22;
+      --canvas-secondary: 28 31 29;
+      --surface: 36 40 38;
+      --surface-elevated: 44 48 45;
+
+      --text-primary: 250 250 248;
+      --text-secondary: 200 203 197;
+      --text-muted: 139 143 135;
+
+      --line: 50 54 47;
+      --line-strong: 114 120 108;
+
+      --accent: 47 158 118;
+      --accent-light: 56 179 130;
+      --accent-dim: 27 90 67;
+      --accent-foreground: 21 23 22;
+      --accent-soft: rgba(47, 158, 118, 0.18);
+
+      --danger: 224 58 46;
+      --danger-foreground: 250 250 248;
+
+      --fluid-primary: #38b382;
+      --fluid-secondary: #1b5a43;
+
+      --selection-bg: #2f9e76;
+      --selection-fg: #151716;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --canvas: 21 23 22;
+    --canvas-secondary: 28 31 29;
+    --surface: 36 40 38;
+    --surface-elevated: 44 48 45;
+
+    --text-primary: 250 250 248;
+    --text-secondary: 200 203 197;
+    --text-muted: 139 143 135;
+
+    --line: 50 54 47;
+    --line-strong: 114 120 108;
+
+    --accent: 47 158 118;
+    --accent-light: 56 179 130;
+    --accent-dim: 27 90 67;
+    --accent-foreground: 21 23 22;
+    --accent-soft: rgba(47, 158, 118, 0.18);
+
+    --danger: 224 58 46;
+    --danger-foreground: 250 250 248;
+
+    --fluid-primary: #38b382;
+    --fluid-secondary: #1b5a43;
+
+    --selection-bg: #2f9e76;
+    --selection-fg: #151716;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    position: relative;
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  body {
+    @apply bg-paper text-ink antialiased;
+    font-feature-settings: "ss01" 1, "cv05" 1;
+    /* Short and subtle on purpose — a theme switch should read as an
+       instant, confident state change, not an animated event. Fully
+       neutralized by the reduced-motion block above like everything else. */
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  ::selection {
+    background: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+
+  :focus-visible {
+    /* --accent holds space-separated RGB channels (see the token block
+       above), not a standalone color — it must be wrapped in rgb()
+       wherever it's consumed directly in raw CSS rather than through a
+       Tailwind utility class. A bare var(--accent) here compiled to
+       invalid CSS silently (the whole outline declaration was dropped,
+       falling back to the browser's default currentColor outline) —
+       caught by an actual keyboard-focus Playwright check against the
+       computed outline-color, not assumed correct from the source. */
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .grain-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size: 160px 160px;
+  }
+
+  .reg-mark {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+  }
+
+  .reg-mark::before,
+  .reg-mark::after {
+    content: "";
+    position: absolute;
+    background: #70756f;
+    opacity: 0.6;
+  }
+
+  .reg-mark::before {
+    left: 50%;
+    top: 0;
+    width: 1px;
+    height: 100%;
+    transform: translateX(-50%);
+  }
+
+  .reg-mark::after {
+    top: 50%;
+    left: 0;
+    height: 1px;
+    width: 100%;
+    transform: translateY(-50%);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
