@@ -163,6 +163,11 @@ export function DiagnosticScene({
       camera.updateProjectionMatrix();
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(r.width, r.height, false);
+      // Under reduced motion there is no frame loop to redraw into the
+      // new size, so a resize would otherwise leave the last render
+      // stretched or, if the host started at zero height, blank. The
+      // diagnostic resizes the layers band once it has measured it.
+      renderStaticRef.current?.();
     }
     resize();
     const ro = new ResizeObserver(resize);

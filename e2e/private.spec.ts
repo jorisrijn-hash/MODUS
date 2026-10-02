@@ -59,3 +59,46 @@ test.describe("private admin auth", () => {
     expect(res.status()).toBe(401);
   });
 });
+
+/**
+ * Admin-surface rejection, covered without the password.
+ *
+ * The "valid credentials" test above is skipped by default because it
+ * needs the real admin password swapped in, so on a routine run nothing
+ * asserted that the admin surface is closed. These do, and they need no
+ * secret: every private page redirects an anonymous visitor to the login,
+ * and every private API answers 401 rather than 500 or, worse, data.
+ *
+ * NOTE ON SCOPE: this covers the mechanism that is actually wired. The
+ * Clerk admin path — `requireAdminSession`, `isAdmin` and the
+ * `AdminMember` table — is implemented and unit-tested in
+ * `src/lib/auth/__tests__/authorize.test.ts`, but no route calls it yet,
+ * so there is no Clerk-gated admin surface to drive from a browser. See
+ * PROJECT-STATUS.md. When /private moves onto Clerk, the signed-in and
+ * revoked cases belong here.
+ */
+test.describe("admin surface is closed to anonymous callers", () => {
+  const pages = ["/private", "/private/diagnostics", "/private/pipeline", "/private/settings"];
+  for (const path of pages) {
+    test(`${path} redirects an anonymous visitor to the login`, async ({ request }) => {
+      const res = await request.get(path, { maxRedirects: 0 });
+      expect(res.status(), `${path} should redirect, not render`).toBe(307);
+      expect(res.headers()["location"]).toContain("/private/login");
+    });
+  }
+
+  const apis = [
+    "/api/private/diagnostics",
+    "/api/private/overview",
+    "/api/private/diagnostics/export",
+  ];
+  for (const path of apis) {
+    test(`${path} answers 401 to an anonymous caller`, async ({ request }) => {
+      const res = await request.get(path);
+      expect(res.status(), `${path} should be unauthorized`).toBe(401);
+      const body = await res.text();
+      // A 401 that still ships rows would be worse than a 500.
+      expect(body).not.toMatch(/companyName|firstName|"email"/i);
+    });
+  }
+});

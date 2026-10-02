@@ -90,6 +90,38 @@ async function expectClearOf(
   ).toBe(true);
 }
 
+
+/**
+ * The ProfilePanel's own bordered box. Not matched on `.sticky`: the
+ * panel stops being sticky precisely when the layers are shown beside it,
+ * which is the case this is here to check.
+ */
+function profilePanel(page: Page) {
+  return page.locator("div.rounded-md.border").first();
+}
+
+/**
+ * The layers share the right column with the `sticky` ProfilePanel, which
+ * moves as the page scrolls. This asserts they are disjoint wherever the
+ * page is parked — the regression being that the panel caught up with the
+ * scene and covered its upper half once scrolled down.
+ */
+async function expectPanelClearOfScene(page: Page, where: string) {
+  const a = await scene(page).first().boundingBox();
+  const b = await profilePanel(page).boundingBox();
+  expect(a, "scene canvas should be present").not.toBeNull();
+  expect(b, "profile panel should be present").not.toBeNull();
+  const disjoint =
+    a!.x + a!.width <= b!.x ||
+    b!.x + b!.width <= a!.x ||
+    a!.y + a!.height <= b!.y ||
+    b!.y + b!.height <= a!.y;
+  expect(
+    disjoint,
+    `the sticky ProfilePanel covers the layers ${where}: scene=${JSON.stringify(a)} panel=${JSON.stringify(b)}`
+  ).toBe(true);
+}
+
 /** Inline opacity of a projected topic label, written by the render path. */
 async function labelOpacity(page: Page, layer: number): Promise<number> {
   return Number(
@@ -140,6 +172,24 @@ test.describe("diagnostic scene through the real journey", () => {
     expect(await labelOpacity(page, 0)).toBe(0);
     await shot(page, "01-entry-sphere");
 
+    /*
+     * Tag the live canvas so the stage changes below can prove it is the
+     * SAME element throughout. The whole sequence is built on one cloud
+     * with persistent point identities — the same point that sits on the
+     * entry sphere becomes a point in a topic layer and then a point in
+     * the mark. A remount would silently reset every position to the
+     * sphere and lose the WebGL context, and the four stages would read
+     * as four unrelated illustrations rather than one object being
+     * reorganised. Nothing else in the suite would notice.
+     */
+    await scene(page).first().evaluate((el) => {
+      (el as HTMLCanvasElement & { __sceneId?: string }).__sceneId = "entry-cloud";
+    });
+    const sameCanvas = () =>
+      scene(page)
+        .first()
+        .evaluate((el) => (el as HTMLCanvasElement & { __sceneId?: string }).__sceneId === "entry-cloud");
+
     // --- answering: separated layers, active topic emphasised --------
     await page.getByRole("button", { name: /Start|Begin/i }).first().click();
     await expect(page.getByText("01 / 06")).toBeVisible();
@@ -155,6 +205,16 @@ test.describe("diagnostic scene through the real journey", () => {
     // The first topic reads as active; a later one is present but quiet.
     await expect.poll(() => labelOpacity(page, 0), { timeout: 4000 }).toBe(1);
     expect(await labelOpacity(page, 3)).toBeLessThan(1);
+    // The layers are pinned below the sticky panel and must stay clear of
+    // it wherever the page is scrolled.
+    expect(await sameCanvas(), "the scene remounted between the entry sphere into the topic layers").toBe(true);
+    await expectPanelClearOfScene(page, "at the top of the form");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(500);
+    await expectPanelClearOfScene(page, "scrolled to the bottom of the form");
+    await page.evaluate(() => window.scrollTo(0, Math.round(document.body.scrollHeight / 2)));
+    await page.waitForTimeout(500);
+    await expectPanelClearOfScene(page, "scrolled half way down the form");
     await shot(page, "02-layers-step1");
 
     // The active layer tracks the real step, not a decorative counter.
@@ -163,6 +223,12 @@ test.describe("diagnostic scene through the real journey", () => {
     await expect(page.getByText("02 / 06")).toBeVisible();
     await expect.poll(() => labelOpacity(page, 1), { timeout: 4000 }).toBe(1);
     expect(await labelOpacity(page, 0)).toBeLessThan(1);
+    // The panel grows as answers accumulate, so the band is re-measured
+    // per step rather than sampled once.
+    await expectPanelClearOfScene(page, "on step 2");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(500);
+    await expectPanelClearOfScene(page, "on step 2, scrolled to the bottom");
     await shot(page, "03-layers-step2");
     // The layers sit beneath the `sticky` ProfilePanel, in the lower part
     // of the right column, so this is where they are seen in full.
@@ -215,6 +281,7 @@ test.describe("diagnostic scene through the real journey", () => {
     }
     // Topic labels belong to the question stages; the stack is unlabelled.
     await expect.poll(() => labelOpacity(page, 0), { timeout: 4000 }).toBe(0);
+    expect(await sameCanvas(), "the scene remounted between the layers and the review stack").toBe(true);
     await shot(page, "04-review-stack");
 
     // --- closure: only after the server acknowledges ------------------
@@ -222,6 +289,7 @@ test.describe("diagnostic scene through the real journey", () => {
     await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
     await expect(scene(page)).toHaveCount(1);
     await expectClearOf(page, page.getByRole("heading").first(), "the estimate heading", "text");
+    expect(await sameCanvas(), "the scene remounted between the review stack and the closure").toBe(true);
     await shot(page, "05-result-closure");
 
     // --- profile: the closure as the screen's subject ------------------
@@ -319,3 +387,67 @@ test.describe("diagnostic scene through the real journey", () => {
     await expect(scene(page)).toHaveCount(1);
   });
 });
+
+/**
+ * Captures at the widths where the documented thresholds change what is
+ * shown, and asserts the thresholds rather than only photographing them.
+ *
+ * 1024 — the entry sphere and topic layers mount; the review stack and
+ * result closure do not, because those layouts' only free space is the
+ * page gutter and it is not wide enough until 1280.
+ * 1280 — everything mounts.
+ * 1440 — the reference width the placements were measured at.
+ */
+for (const width of [1024, 1280, 1440]) {
+  test(`stage placement and thresholds at ${width}px`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const gutterStages = width >= 1280;
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/diagnostic");
+    await expect(scene(page)).toHaveCount(1);
+    await shot(page, `w${width}-1-entry`);
+
+    await page.getByRole("button", { name: /Start|Begin/i }).first().click();
+    await expect(page.getByText("01 / 06")).toBeVisible();
+    await expect(scene(page)).toHaveCount(1);
+    // Wherever the layers are actually drawn, they must clear the panel.
+    if (await scene(page).first().isVisible()) {
+      await expectPanelClearOfScene(page, `on the form at ${width}px`);
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(400);
+      await expectPanelClearOfScene(page, `on the form at ${width}px, scrolled`);
+    }
+    await shot(page, `w${width}-2-layers`);
+
+    await fillStep1(page, `Width ${width} BV`);
+    await answerThroughPriorities(page);
+    await page.getByLabel("First name").fill("Width");
+    await page.getByLabel("Last name").fill("QA");
+    await page.getByLabel("Work email").fill(`w${width}-${Date.now()}@playwright-qa.dev`);
+    await page.getByRole("button", { name: /Review/i }).click();
+    await expect(page.getByText(/review/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(scene(page)).toHaveCount(gutterStages ? 1 : 0);
+    const submitBtn = page.getByRole("button", { name: /Hold to Submit/i });
+    if (gutterStages) {
+      await expectClearOf(page, submitBtn, "the submit button");
+      const edits = page.getByRole("button", { name: /^edit$/i });
+      for (let i = 0; i < (await edits.count()); i++) {
+        await expectClearOf(page, edits.nth(i), `EDIT control ${i + 1} at ${width}px`);
+      }
+    }
+    await shot(page, `w${width}-3-review`);
+
+    await holdToSubmit(page, submitBtn);
+    await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
+    await expect(scene(page)).toHaveCount(gutterStages ? 1 : 0);
+    await shot(page, `w${width}-4-result`);
+
+    await page.goto("/diagnostic");
+    await expect(page.getByText(/PROFILE READY/i)).toBeVisible({ timeout: 10000 });
+    // The profile closure needs only the two-column layout, so it appears
+    // at 1024 as well.
+    await expect(scene(page)).toHaveCount(1);
+    await shot(page, `w${width}-5-profile`);
+  });
+}

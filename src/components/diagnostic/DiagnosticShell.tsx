@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -334,6 +334,80 @@ export function DiagnosticShell() {
   // motion.div) is both simpler and, verified via Playwright, reliable
   // where the AnimatePresence version was not.
   /*
+   * The topic layers share the right column with `ProfilePanel`.
+   *
+   * The panel was `sticky top-24`, which made the two provably
+   * impossible to separate: a sticky panel moves relative to the
+   * document, so no fixed offset clears it everywhere. At the top of the
+   * page it sits at its natural y (199 at 1440x900, bottom 723); once
+   * stuck it rises to y=96 (bottom 621). Anchoring the layers to the
+   * stuck bottom overlapped at scroll 0; anchoring to the natural bottom
+   * left 121px, below anything worth rendering.
+   *
+   * So the panel stops following the scroll while the layers are shown
+   * beside it — both are then anchored in the document and the layers are
+   * placed at the panel's measured bottom edge. They cannot overlap at
+   * any scroll position or on any step, which the e2e spec asserts
+   * directly rather than inferring from the numbers here.
+   *
+   * The panel grows as answers accumulate (588px to 635px at 1024 across
+   * the six steps), so a ResizeObserver keeps this current rather than
+   * sampling it once.
+   */
+  const shellRef = useRef<HTMLDivElement>(null);
+  const profileColumnRef = useRef<HTMLDivElement>(null);
+  const [layersBand, setLayersBand] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (screen !== "form" || !wideEnoughForScene) {
+      setLayersBand(null);
+      return;
+    }
+    // ProfilePanel's own root is the bordered box.
+    const panel = profileColumnRef.current?.firstElementChild as HTMLElement | null;
+    const shell = shellRef.current;
+    if (!panel || !shell) {
+      setLayersBand(null);
+      return;
+    }
+    const GAP = 24;
+    const BOTTOM_MARGIN = 40;
+    // Below this the layers read as a sliver of noise rather than as
+    // separated planes, so they are not shown at all. A measured
+    // decision, not a breakpoint: at 1024x800 the panel alone is 635px.
+    const MIN_HEIGHT = 170;
+    const MAX_HEIGHT = 300;
+    const column = profileColumnRef.current!;
+    const measure = () => {
+      const shellTop = shell.getBoundingClientRect().top + window.scrollY;
+      /*
+       * The panel's NATURAL bottom — the column's top plus the panel's
+       * height — not its current rect. Whether the panel is sticky
+       * depends on this measurement, so reading its live position would
+       * feed back on itself: measured while stuck, the band would be
+       * computed from the stuck offset, the panel would then be switched
+       * to static and drop back down into it. The column is never sticky,
+       * so this is stable at any scroll position.
+       */
+      const columnTop = column.getBoundingClientRect().top + window.scrollY;
+      const top = columnTop + panel.offsetHeight - shellTop + GAP;
+      const available = shell.offsetHeight - top - BOTTOM_MARGIN;
+      setLayersBand(
+        available >= MIN_HEIGHT ? { top, height: Math.min(available, MAX_HEIGHT) } : null
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(panel);
+    ro.observe(shell);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [screen, step, wideEnoughForScene]);
+
+  /*
    * Where the scene sits on each screen.
    *
    * It is `pointer-events-none` and behind the content, but "behind" is
@@ -350,7 +424,9 @@ export function DiagnosticShell() {
    * container), and the review column is `max-w-2xl` centred, leaving a
    * 264px right gutter (22%).
    */
-  const scenePlacement: { band: string; size: string } | null = (() => {
+  const scenePlacement:
+    | { band: string; size: string; bandStyle?: CSSProperties; sizeStyle?: CSSProperties }
+    | null = (() => {
     switch (screen) {
       case "intro":
         // The sphere is the entry screen's subject, so it takes the right
@@ -359,14 +435,32 @@ export function DiagnosticShell() {
           ? { band: "top-24", size: "h-[min(62vh,540px)] w-[48%]" }
           : null;
       case "form":
-        // Beneath the ProfilePanel, which is `sticky top-24` and owns the
-        // upper right column. Placed behind the panel first and was
-        // almost entirely occluded — the layers and their labels were
-        // invisible, so the scene paid for a WebGL context and showed
-        // nothing. This is the column's empty lower region instead.
-        return wideEnoughForScene
-          ? { band: "bottom-10", size: "h-[min(34vh,300px)] w-[41%]" }
-          : null;
+        /*
+         * Anchored at the panel's measured bottom edge — see above. Both
+         * sit in the document, so this holds at every scroll position.
+         *
+         * Deliberately never `null` here. The band is measured in an
+         * effect, so it is unset on the first form render; returning
+         * `null` for that one frame would unmount the scene and take the
+         * WebGL context and the point positions with it, which is exactly
+         * the continuity the sphere -> layers morph depends on. Instead
+         * the scene stays mounted and is simply not drawn until it has a
+         * band, and stays undrawn if the column never has room for one.
+         */
+        if (!wideEnoughForScene) return null;
+        return layersBand
+          ? {
+              band: "",
+              size: "w-[41%]",
+              bandStyle: { top: layersBand.top },
+              sizeStyle: { height: layersBand.height },
+            }
+          : {
+              band: "invisible",
+              size: "w-[41%]",
+              bandStyle: { top: 0 },
+              sizeStyle: { height: 1 },
+            };
       case "review":
       case "submitting":
       case "submit_error":
@@ -399,7 +493,7 @@ export function DiagnosticShell() {
   })();
 
   return (
-    <div className="relative min-h-[100svh] pt-20">
+    <div className="relative min-h-[100svh] pt-20" ref={shellRef}>
       {/*
        * The diagnostic's visual story, driven by the REAL screen and step
        * — not a parallel decorative counter. It holds the review
@@ -428,6 +522,7 @@ export function DiagnosticShell() {
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-x-0 z-0 ${scenePlacement.band}`}
+          style={scenePlacement.bandStyle}
         >
           {/*
            * Mirrors the page Container so the scene lines up with the
@@ -438,7 +533,7 @@ export function DiagnosticShell() {
            * window.
            */}
           <Container>
-            <div className={`ml-auto ${scenePlacement.size}`}>
+            <div className={`ml-auto ${scenePlacement.size}`} style={scenePlacement.sizeStyle}>
               <DiagnosticScene
                 screen={screen}
                 step={step}
@@ -590,8 +685,10 @@ export function DiagnosticShell() {
                 </div>
               </div>
 
-              <div className="hidden lg:block">
-                <ProfilePanel answers={answers} />
+              <div className="hidden lg:block" ref={profileColumnRef}>
+                {/* Stops following the scroll while the topic layers are
+                    shown beneath it, so the two stay disjoint. */}
+                <ProfilePanel answers={answers} sticky={!layersBand} />
               </div>
             </div>
           </Container>

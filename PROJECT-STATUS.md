@@ -62,6 +62,14 @@ Configuration is not evidence of working behaviour.
 - **Application-enforced MFA is intentionally deferred** (user decision, 2 Oct 2026). `ADMIN_MFA_REQUIRED` defaults to false. The enforcement path is retained and tested so enabling it is a one-line change. Google two-step verification protects the Google login only and is **not** application-enforced MFA. This is a recorded limitation, never to be reported as implemented or as verified.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
+- **The Clerk admin path is not wired to any route.** The helpers and the
+  `AdminMember` table exist and are unit-tested, but `/private` is still
+  guarded by the legacy password session, so granting a Clerk user admin
+  membership currently grants access to nothing. See §11 — this changes
+  what the post-deploy admin steps can verify.
+- **Live notification retry is unverified** — with no mail provider the
+  worker skips rather than attempts, so no real failure path runs. Backoff
+  and give-up bounds are covered at unit level only. See §10.
 - **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
 - **Diagnostic graphic — all stages active and verified through the real
   journey.** See §9 for the evidence and the two remaining limitations.
@@ -77,7 +85,8 @@ Configuration is not evidence of working behaviour.
   scene through the question and submit screens destabilised submission.
   That was a misattribution: the cause was a stale-coordinate race in the
   test harness (§8), not the scene. With it fixed, the full journey runs
-  with the scene mounted throughout — 42/42 over three repeats.
+  with the scene mounted throughout, and the sticky-panel occlusion is
+  resolved rather than tolerated — see §9.
 
 - ~~**The estimate-screen transition is flaky under load.**~~ **Resolved** — it was a stale-coordinate race in the test harness, not a product defect. Diagnosed, measured and fixed; see §8. `workers: 1` stays, for the separate WebGL-contention reason.
 - **Auth screen visual parity unverified** against the MODUS reference.
@@ -304,30 +313,165 @@ content container — so on a wide screen it sat 120px right of the content
 and its projected labels were clipped by the window. It now mirrors the
 page `Container`.
 
-### Two limitations, stated plainly
+### The sticky panel, resolved
 
-- **The topic layers share a column with the `sticky` ProfilePanel.** At
-  the top of the form screen the layers sit cleanly below the panel; once
-  scrolled to the bottom the panel follows down and covers their upper
-  portion, so roughly four of the six layers are visible at any given
-  scroll position. Any height that avoids this at one scroll position
-  makes it worse at the other. Moving the scene into that column in
-  normal flow would fix it, but would remount the canvas between screens
-  and so destroy the persistent point identities that make the four
-  states read as one object being reorganised. Left as is, deliberately.
-- **The review-family and result stages need ≥1280px**, not 1024px,
-  because those layouts are a narrow column or a dense grid whose only
-  free space is the page gutter. Between 1024 and 1280 the entry sphere
-  and topic layers appear but the stack and the result closure do not.
+The topic layers share the right column with `ProfilePanel`, which was
+`sticky top-24`. That made the two impossible to separate with any fixed
+offset, because the panel moves relative to the document: at the top of
+the page it sits at its natural y (199 at 1440x900, bottom 723); once
+stuck it rises to y=96 (bottom 621). Anchoring the layers to the stuck
+bottom overlapped at scroll 0; anchoring to the natural bottom left 121px,
+below anything worth rendering.
+
+So the panel stops following the scroll **only while the layers are shown
+beside it** (`<ProfilePanel sticky={false}>` — it still sticks at
+viewports where the layers are not drawn). Both are then anchored in the
+document, and the layers sit at the panel's measured bottom edge. That
+measurement is taken from the column's top plus the panel's height, not
+the panel's live rect, which would feed back on itself since the
+measurement is what decides whether the panel is sticky at all. A
+`ResizeObserver` keeps it current as the panel grows with the answers
+(588px to 635px at 1024 across the six steps). Where the column cannot
+give the layers at least 170px, they are not drawn.
+
+`position: fixed` would be the obvious tool and does not work here:
+`PageTransition` leaves `filter: blur(0px)` on an ancestor, and a filter
+creates a containing block for fixed descendants. Verified with a probe —
+a fixed element scrolled with the page instead of staying put.
+
+**Point identities are preserved across every stage.** The scene is never
+unmounted, including on the frame before the band has been measured —
+returning `null` there would have taken the WebGL context and every point
+position with it, and the four stages would then read as four unrelated
+illustrations rather than one object being reorganised. The spec tags the
+live canvas at the entry screen and re-checks that tag at the layers, the
+stack and the closure, so a remount fails the test instead of passing
+quietly.
+
+### Remaining limitation
+
+**The review-family and result stages need ≥1280px**, not 1024px: those
+layouts are a narrow column or a dense grid whose only free space is the
+page gutter. Between 1024 and 1280 the entry sphere, the topic layers and
+the profile closure appear; the review stack and the result closure do
+not. Asserted at all three widths rather than assumed.
 
 ### Evidence
 
-- `e2e/diagnosticScene.spec.ts`: 4 tests, all passing.
-- Full e2e suite: **50 passed, 1 skipped** (the skip needs
-  `E2E_ADMIN_PASSWORD`), up from 46.
-- Submit specs plus the scene spec at `--repeat-each=3`: **42/42**, with
-  the scene mounted through the whole journey including submit.
-- `npx tsc --noEmit` clean; `npx vitest run` 50 passed.
-- `workers: 1` unchanged, as asked — it is set for GPU contention between
-  concurrent WebGL contexts, which this change makes more relevant, not
-  less.
+- `e2e/diagnosticScene.spec.ts`: **7 tests** — the journey, the submission
+  failure, reduced motion, the mount thresholds, and the whole flow
+  captured and asserted at 1024 / 1280 / 1440.
+- Panel/layer clearance asserted at the top of the page, half way down and
+  scrolled to the bottom, on more than one step, at every width where the
+  layers are drawn.
+- Scene identity asserted across sphere → layers → stack → closure.
+- Full e2e suite: **60 passed, 1 skipped** (61 total); `tsc --noEmit` clean;
+  `vitest run` 50 passed.
+- Submit specs plus the scene spec at `--repeat-each=2`: **34/34**.
+- `workers: 1` unchanged, as asked.
+- Screenshots: `e2e-screens/` (gitignored).
+
+## 10. Notifications — what CRON_SECRET does and does not gate
+
+**It gates the scheduled worker only.** Verified both ways.
+
+- The submission route imports `dispatchPending` directly and calls it
+  inside `after()` (`src/app/api/diagnostic/route.ts`). That is an
+  in-process function call, not an HTTP request to the cron endpoint, so
+  it never reaches the secret check. A submission still enqueues and still
+  attempts prompt delivery with `CRON_SECRET` unset.
+- `src/app/api/cron/notifications/route.ts` is the only reader of
+  `CRON_SECRET`, and with none configured it rejects everything —
+  including a request carrying Vercel's own cron header.
+
+Live, against the running app:
+
+| Request | Result |
+|---|---|
+| No credentials | **401** |
+| Wrong secret | **401** |
+| `x-vercel-cron: 1` alone | **401** |
+| Correct secret | 200 `{"ok":true,"sent":0,"failed":0,"skipped":199}` |
+
+`skipped` is the pending backlog in the local `modus_dev` database (test
+artefacts from repeated Playwright runs), reported rather than pretended
+delivered because no mail provider is configured locally.
+
+### Duplicate prevention — verified live
+
+Two submissions with the same `Idempotency-Key`:
+
+- Second response returned the **same record id** with
+  `deduplicated: true`.
+- **One** diagnostic row and **one** outbox row for that submission.
+- Inserting a second outbox row with the same `dedupeKey` is rejected by
+  the database: Prisma `P2002`, `target: ["dedupeKey"]`.
+
+The first run of that last check was **vacuous** — it failed on a missing
+required column rather than the constraint, and reported "rejected"
+anyway. Re-run with a complete row, it fails on the constraint itself.
+Worth recording, because a dedupe check that passes for the wrong reason
+is worse than none.
+
+### Retries — unit-level only
+
+The nine tests in `src/lib/notifications/__tests__/outbox.test.ts` cover
+retention and backoff: a mail failure keeps the row `PENDING`, increments
+`attempts`, records `lastError`, schedules `nextAttemptAt` in the future,
+backs off further each attempt, gives up only after a bound, and a sent
+row is never reconsidered or resurrected.
+
+**Live retry behaviour is still unverified**, and cannot be verified here:
+with no mail provider configured the worker skips rather than attempts, so
+no real failure path runs. This is the same gap as the unconfirmed
+delivery receipt at `hello@withmodus.co`.
+
+## 11. The Clerk admin path is not wired to any route
+
+Found while adding the admin coverage, and it changes what the post-deploy
+admin steps mean.
+
+`requireAdminSession`, `isAdmin`, `requireAdmin` and the `AdminMember`
+table are implemented, and `src/lib/auth/__tests__/authorize.test.ts`
+covers them properly — 401 for an anonymous caller, 403 for a signed-in
+account with no membership, admitted for a current membership, and only
+ever matching an **unrevoked** row. `scripts/grant-admin.mjs` writes those
+rows, and the Supabase RLS checks prove the table is not readable by an
+ordinary account.
+
+**But no route calls any of them.** The only admin surface, `/private`, is
+still guarded by the legacy password session (`requireAuth` /
+`isAuthenticated`). A grep across `src/app`, `src/components` and
+`src/middleware` finds no caller.
+
+What this means for the deployment plan:
+
+- Granting the MODUS Google account's production Clerk user id an
+  `AdminMember` row will write the row, and the row will be correct, but
+  **it will not grant access to anything**, because nothing enforces it.
+- "Test admin access" therefore cannot be done against the Clerk path
+  until `/private` is moved onto it. Signing in with Google will not open
+  the admin inbox; the admin password still will.
+- Admin MFA remains deferred, as agreed — and note it is deferred on a
+  path that is not yet carrying any traffic.
+
+Wiring `/private` onto Clerk is a real change to how the admin signs in,
+so it is **not** done here. It is the recommended next step, and it is
+what the brief's "secure admin inbox" ultimately requires.
+
+### What is covered today
+
+`e2e/private.spec.ts` now asserts the admin surface is closed without
+needing the password, which a routine run previously never checked
+(the one test that did was skipped by default):
+
+- `/private`, `/private/diagnostics`, `/private/pipeline` and
+  `/private/settings` each answer **307** to an anonymous visitor with a
+  `Location` of `/private/login`.
+- `/api/private/diagnostics`, `/api/private/overview` and
+  `/api/private/diagnostics/export` each answer **401**, and the body is
+  asserted to contain no submission fields — a 401 that still shipped rows
+  would be worse than a 500.
+
+The skipped password test is left in place: it covers the mechanism that
+is actually wired, and it needs a real secret to run.

@@ -11,7 +11,21 @@ import { pick } from "@/lib/diagnostic/questions";
 import type { DiagnosticAnswers, Signal } from "@/lib/diagnostic/types";
 import { useDict, useLocale } from "@/lib/i18n/context";
 
-export function ProfilePanel({ answers }: { answers: DiagnosticAnswers }) {
+export function ProfilePanel({
+  answers,
+  sticky = true,
+}: {
+  answers: DiagnosticAnswers;
+  /**
+   * Whether the panel follows the scroll. Off when the diagnostic scene's
+   * topic layers are shown beneath it in the same column: a sticky panel
+   * moves relative to the layers, so no fixed offset can clear it at
+   * every scroll position — at the top of the page the panel sits at its
+   * natural y, lower than where it sticks. Anchoring both in the document
+   * is what makes them provably disjoint. See DiagnosticShell.
+   */
+  sticky?: boolean;
+}) {
   const dict = useDict();
   const { locale } = useLocale();
   const t = dict.diagnosticProfilePanel;
@@ -32,7 +46,11 @@ export function ProfilePanel({ answers }: { answers: DiagnosticAnswers }) {
 
   return (
     <LayoutGroup>
-      <div className="sticky top-24 rounded-md border border-line bg-white p-6">
+      <div
+        className={`rounded-md border border-line bg-white p-6 ${
+          sticky ? "sticky top-24" : ""
+        }`}
+      >
         <div className="flex items-center gap-2">
           <LogoMark className="h-4 w-4" />
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
