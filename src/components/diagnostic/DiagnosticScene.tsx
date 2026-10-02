@@ -77,10 +77,26 @@ export function DiagnosticScene({
   // or the WebGL context.
   const stageRef = useRef<DiagnosticStage>(stageFor(screen, step));
   const labelLayerRef = useRef<HTMLDivElement>(null);
+  // Set by the scene effect while reduced motion is in force. See below.
+  const renderStaticRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     stageRef.current = stageFor(screen, step);
-  }, [screen, step]);
+    /*
+     * Under reduced motion there is no frame loop running, so nothing
+     * would ever pick this new stage up — the scene would stay frozen in
+     * whatever composition it was mounted with. That was invisible while
+     * the scene only mounted on the entry screen, where the stage never
+     * changes. Now that it runs through the whole journey, a visitor who
+     * prefers reduced motion would otherwise be shown the entry sphere
+     * while answering, reviewing and finishing.
+     *
+     * Re-rendering once per stage change keeps every stage correct
+     * without animating between them, which is the actual request behind
+     * `prefers-reduced-motion`: no motion, not no information.
+     */
+    if (reducedMotion) renderStaticRef.current?.();
+  }, [screen, step, reducedMotion]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -263,12 +279,28 @@ export function DiagnosticScene({
 
     if (reducedMotion) {
       // Static composition for the current stage: no morph, no drift.
-      positions.set(targetsFor(cloud, stageRef.current));
-      for (let i = 0; i < count; i++) emphasis[i] = emphasisFor(cloud, stageRef.current, i);
-      geo.attributes.position.needsUpdate = true;
-      geo.attributes.aEmphasis.needsUpdate = true;
-      positionLabels(stageRef.current);
-      renderer.render(scene, camera);
+      // Points are placed directly on the stage's targets instead of
+      // being eased toward them.
+      const renderStatic = () => {
+        const stage = stageRef.current;
+        positions.set(targetsFor(cloud, stage));
+        for (let i = 0; i < count; i++) emphasis[i] = emphasisFor(cloud, stage, i);
+        geo.attributes.position.needsUpdate = true;
+        geo.attributes.aEmphasis.needsUpdate = true;
+        positionLabels(stage);
+        renderer.render(scene, camera);
+      };
+      renderStatic();
+      // Published so a stage change can re-render it — there is no frame
+      // loop here to notice one.
+      renderStaticRef.current = renderStatic;
+      return () => {
+        renderStaticRef.current = null;
+        ro.disconnect();
+        geo.dispose();
+        mat.dispose();
+        renderer.dispose();
+      };
     } else {
       const io = new IntersectionObserver(([e]) => {
         visible = e.isIntersecting;
@@ -286,13 +318,8 @@ export function DiagnosticScene({
         renderer.dispose();
       };
     }
-
-    return () => {
-      ro.disconnect();
-      geo.dispose();
-      mat.dispose();
-      renderer.dispose();
-    };
+    // Both branches above return their own cleanup; there is no path to
+    // here.
   }, [reducedMotion, theme, labels]);
 
   return (

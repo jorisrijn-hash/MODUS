@@ -25,16 +25,38 @@ import { StepSystems } from "@/components/diagnostic/StepSystems";
 import { StepFriction } from "@/components/diagnostic/StepFriction";
 import { StepPriorities } from "@/components/diagnostic/StepPriorities";
 import { StepContact } from "@/components/diagnostic/StepContact";
-import { companyNameSchema, emailSchema, nameSchema, textareaSchema, validatePhone, websiteSchema } from "@/lib/diagnostic/schema";
+import {
+  companyNameSchema,
+  emailSchema,
+  nameSchema,
+  textareaSchema,
+  validatePhone,
+  websiteSchema,
+} from "@/lib/diagnostic/schema";
 import { emptyAnswers, type DiagnosticAnswers } from "@/lib/diagnostic/types";
-import { loadDiagnosticState, saveDiagnosticState, clearDiagnosticState } from "@/lib/diagnostic/storage";
+import {
+  loadDiagnosticState,
+  saveDiagnosticState,
+  clearDiagnosticState,
+} from "@/lib/diagnostic/storage";
 import { buildProfileIndicators, buildSignals } from "@/lib/diagnostic/rules";
 import { submitDiagnostic } from "@/lib/diagnostic/submit";
-import { saveContextReference, getContextReference, clearContextReference } from "@/lib/customerContext/storage";
+import {
+  saveContextReference,
+  getContextReference,
+  clearContextReference,
+} from "@/lib/customerContext/storage";
 import { useCustomerContext } from "@/lib/customerContext/useCustomerContext";
 import { track } from "@/lib/chatbot";
 
-type Screen = "intro" | "form" | "review" | "submitting" | "submit_error" | "result" | "profile";
+type Screen =
+  | "intro"
+  | "form"
+  | "review"
+  | "submitting"
+  | "submit_error"
+  | "result"
+  | "profile";
 
 function canProceed(step: number, a: DiagnosticAnswers): boolean {
   if (step === 0) {
@@ -54,7 +76,9 @@ function canProceed(step: number, a: DiagnosticAnswers): boolean {
     // something it should still clear the same bar the field enforces
     // while typing (see StepFriction's onValidate).
     const description = a.problemDescription.trim();
-    const descriptionOk = !description || textareaSchema(20, 500).safeParse(a.problemDescription).success;
+    const descriptionOk =
+      !description ||
+      textareaSchema(20, 500).safeParse(a.problemDescription).success;
     return hasFriction && descriptionOk;
   }
   if (step === 4) return a.priorities.length > 0 && !!a.timing;
@@ -99,7 +123,16 @@ export function DiagnosticShell() {
   // 1024px is the desktop threshold: the scene is the entry screen's main
   // visual, so it has to appear at ordinary desktop widths, while phones
   // and small tablets keep a form with no WebGL at all.
+  // Two thresholds, because the screens do not have the same amount of
+  // room. `intro`, `form` and `profile` are two-column layouts with a
+  // genuinely empty right column at 1024px. `review`, `submitting`,
+  // `submit_error` and `result` are a centred narrow column or a dense
+  // grid, where the only free space is the page gutter — which is not
+  // wide enough to hold the scene until about 1280px. Below each
+  // threshold the scene is not mounted at all, so there is no WebGL
+  // context and nothing to overlap.
   const wideEnoughForScene = useMediaQuery("(min-width: 1024px)");
+  const wideEnoughForGutterScene = useMediaQuery("(min-width: 1280px)");
   const STEP_LABELS = dict.diagnosticShell.stepLabels;
   const STEP_HEADLINES = dict.diagnosticShell.stepHeadlines;
   // Section 13 — a purely visual, non-authoritative echo of the homepage
@@ -108,11 +141,18 @@ export function DiagnosticShell() {
   // consulted by `canProceed` or any step component.
   const entryHint = useSearchParams().get("hint");
   const [resumedState] = useState(resumableState);
-  const [screen, setScreen] = useState<Screen>(() => initialScreen(!!resumedState));
-  const { companyName: contextCompanyName, summary: contextSummary, summaryStatus: contextSummaryStatus } =
-    useCustomerContext();
+  const [screen, setScreen] = useState<Screen>(() =>
+    initialScreen(!!resumedState),
+  );
+  const {
+    companyName: contextCompanyName,
+    summary: contextSummary,
+    summaryStatus: contextSummaryStatus,
+  } = useCustomerContext();
   const [step, setStep] = useState(resumedState?.step ?? 0);
-  const [answers, setAnswers] = useState<DiagnosticAnswers>(resumedState?.answers ?? emptyAnswers);
+  const [answers, setAnswers] = useState<DiagnosticAnswers>(
+    resumedState?.answers ?? emptyAnswers,
+  );
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [showRecoveryPrompt, setShowRecoveryPrompt] = useState(!!resumedState);
   const [resumed, setResumed] = useState(false);
@@ -122,7 +162,8 @@ export function DiagnosticShell() {
   // stuck showing "profile unavailable" as a dead end. Adjusted during
   // render (React's own pattern for reacting to a changing value) rather
   // than in an effect, so it lands before the next paint instead of after.
-  const [lastSummaryStatus, setLastSummaryStatus] = useState(contextSummaryStatus);
+  const [lastSummaryStatus, setLastSummaryStatus] =
+    useState(contextSummaryStatus);
   if (contextSummaryStatus !== lastSummaryStatus) {
     setLastSummaryStatus(contextSummaryStatus);
     if (screen === "profile" && contextSummaryStatus === "error") {
@@ -148,7 +189,10 @@ export function DiagnosticShell() {
     function trackIfAbandoned() {
       const { screen: currentScreen, step: currentStep } = abandonRef.current;
       if (currentScreen === "form" || currentScreen === "review") {
-        track("diagnostic_abandoned", { screen: currentScreen, step: currentStep });
+        track("diagnostic_abandoned", {
+          screen: currentScreen,
+          step: currentStep,
+        });
       }
     }
     window.addEventListener("beforeunload", trackIfAbandoned);
@@ -198,7 +242,10 @@ export function DiagnosticShell() {
     setShowRecoveryPrompt(false);
   }
 
-  function update<K extends keyof DiagnosticAnswers>(key: K, value: DiagnosticAnswers[K]) {
+  function update<K extends keyof DiagnosticAnswers>(
+    key: K,
+    value: DiagnosticAnswers[K],
+  ) {
     setAnswers((a) => ({ ...a, [key]: value }));
   }
 
@@ -232,7 +279,9 @@ export function DiagnosticShell() {
   // animation's own timers, Section 6/19 both want the loader to feel
   // quick and deterministic) pick up whichever result is ready, awaiting
   // it if the request is still outstanding.
-  const submitResultRef = useRef<ReturnType<typeof submitDiagnostic> | null>(null);
+  const submitResultRef = useRef<ReturnType<typeof submitDiagnostic> | null>(
+    null,
+  );
 
   function submit() {
     track("diagnostic_submitted");
@@ -262,7 +311,13 @@ export function DiagnosticShell() {
     <StepSystems key="2" answers={answers} update={update} />,
     <StepFriction key="3" answers={answers} update={update} />,
     <StepPriorities key="4" answers={answers} update={update} />,
-    <StepContact key="5" answers={answers} update={update} errors={errors} setErrors={setErrors} />,
+    <StepContact
+      key="5"
+      answers={answers}
+      update={update}
+      errors={errors}
+      setErrors={setErrors}
+    />,
   ];
 
   // Checkpoint 6 pre-task — this used to be `<AnimatePresence
@@ -278,6 +333,71 @@ export function DiagnosticShell() {
   // (no exit animation, each screen just fades in on its own keyed
   // motion.div) is both simpler and, verified via Playwright, reliable
   // where the AnimatePresence version was not.
+  /*
+   * Where the scene sits on each screen.
+   *
+   * It is `pointer-events-none` and behind the content, but "behind" is
+   * not sufficient on its own: the page has no opaque background, so
+   * points drawn under a paragraph show through it and cost legibility.
+   * Each screen therefore gets the region that is actually empty in its
+   * own layout, and `null` means do not mount.
+   *
+   * `band` positions a full-width strip; `size` is the canvas inside it,
+   * right-aligned to the content column. Widths are percentages of the
+   * CONTAINER, not the viewport, which is what keeps the scene aligned
+   * with the columns beside it. Measured at 1440: the container runs
+   * x=120..1320, the form's right column x=823..1320 (41% of the
+   * container), and the review column is `max-w-2xl` centred, leaving a
+   * 264px right gutter (22%).
+   */
+  const scenePlacement: { band: string; size: string } | null = (() => {
+    switch (screen) {
+      case "intro":
+        // The sphere is the entry screen's subject, so it takes the right
+        // column at full strength.
+        return wideEnoughForScene
+          ? { band: "top-24", size: "h-[min(62vh,540px)] w-[48%]" }
+          : null;
+      case "form":
+        // Beneath the ProfilePanel, which is `sticky top-24` and owns the
+        // upper right column. Placed behind the panel first and was
+        // almost entirely occluded — the layers and their labels were
+        // invisible, so the scene paid for a WebGL context and showed
+        // nothing. This is the column's empty lower region instead.
+        return wideEnoughForScene
+          ? { band: "bottom-10", size: "h-[min(34vh,300px)] w-[41%]" }
+          : null;
+      case "review":
+      case "submitting":
+      case "submit_error":
+        // The review column is `max-w-2xl` and centred; the scene sits in
+        // the gutter beside it, never over it.
+        return wideEnoughForGutterScene
+          ? { band: "top-28", size: "h-[min(46vh,400px)] w-[30%]" }
+          : null;
+      case "result":
+        // The estimate is dense and its numbers must stay readable, so
+        // the closure is small and tucked into the header's right
+        // whitespace, above the two-column grid.
+        return wideEnoughForGutterScene
+          ? { band: "top-16", size: "h-[min(26vh,215px)] w-[18%]" }
+          : null;
+      case "profile":
+        // `ProfileReadyScreen` is a two-column grid with only one child,
+        // so its right column is empty. The closure composition belongs
+        // exactly there, and this is the one screen where it is the
+        // subject rather than an accompaniment.
+        return wideEnoughForScene
+          ? {
+              band: "top-1/2 -translate-y-1/2",
+              size: "h-[min(56vh,480px)] w-[48%]",
+            }
+          : null;
+      default:
+        return null;
+    }
+  })();
+
   return (
     <div className="relative min-h-[100svh] pt-20">
       {/*
@@ -291,46 +411,42 @@ export function DiagnosticShell() {
        * description of each stage is the form's own heading and progress.
        */}
       {/*
-       * ENTRY ONLY, for now.
+       * The full sequence is mounted: entry sphere, separated topic
+       * layers, review stack, and the closure that can only be reached
+       * once the server has acknowledged persistence.
        *
-       * The scene implements the full sequence — entry sphere, separated
-       * topic layers, review stack, mark closure — and that mapping is
-       * unit-tested. But mounting it through the question and submit
-       * screens measurably destabilised the submission flow: its render
-       * loop and WebGL context compete with the submit transition, and
-       * three separate specs began failing intermittently at the estimate
-       * screen. Bisected: restricting the mount to `intro` returned the
-       * suite to 45 passing with only the known pre-existing failure.
-       *
-       * So the focused form is deliberately free of WebGL again, which was
-       * the original principle, and the entry screen gets its sphere.
-       * Re-enabling the later stages needs the submit-transition timing
-       * looked at first — see PROJECT-STATUS.md.
+       * This was previously restricted to `intro`. The reason given was
+       * that mounting it through the submit screens destabilised three
+       * specs at the estimate screen — but that was a misattribution. The
+       * real cause was a stale-coordinate race in the test harness's
+       * hold-to-confirm gesture (the review screen animates in; the
+       * tests measured the button's position before it settled). With
+       * that fixed the scene is no longer implicated, and the restriction
+       * no longer buys anything. See PROJECT-STATUS.md §8.
        */}
-      {wideEnoughForScene && screen === "intro" && (
+      {scenePlacement && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute right-0 z-0 ${
-            screen === "intro"
-              ? // Entry: the sphere is the screen's subject, so it gets the
-                // right half at full strength.
-                "top-24 h-[min(62vh,540px)] w-[46%] opacity-100"
-              : // Answering onward: BELOW the profile panel, which owns the
-                // upper right. Placed behind it first and was almost
-                // entirely occluded — the layers and their labels were
-                // invisible, so the scene was paying for a WebGL context
-                // and showing nothing. This uses the empty region instead,
-                // where the separated layers and the active topic label
-                // are actually legible.
-                "bottom-10 h-[min(34vh,300px)] w-[38%] opacity-[0.75]"
-          }`}
+          className={`pointer-events-none absolute inset-x-0 z-0 ${scenePlacement.band}`}
         >
-          <DiagnosticScene
-            screen={screen}
-            step={step}
-            labels={dict.diagnosticShell.stepTopics}
-            className="h-full w-full"
-          />
+          {/*
+           * Mirrors the page Container so the scene lines up with the
+           * content columns. It was previously pinned to `right-0`, i.e.
+           * the viewport edge, which put it 120px to the right of the
+           * content on a wide screen — the canvas ran under the page
+           * gutter and the projected topic labels were clipped by the
+           * window.
+           */}
+          <Container>
+            <div className={`ml-auto ${scenePlacement.size}`}>
+              <DiagnosticScene
+                screen={screen}
+                step={step}
+                labels={dict.diagnosticShell.stepTopics}
+                className="h-full w-full"
+              />
+            </div>
+          </Container>
         </div>
       )}
       {screen === "intro" && (
@@ -343,7 +459,9 @@ export function DiagnosticShell() {
           <Container className="grid grid-cols-1 items-center gap-14 py-16 lg:grid-cols-2 lg:py-24">
             <div>
               <Reveal>
-                <SectionLabel id="SYS / 09">{dict.diagnosticShell.label}</SectionLabel>
+                <SectionLabel id="SYS / 09">
+                  {dict.diagnosticShell.label}
+                </SectionLabel>
               </Reveal>
               {entryHint && (
                 <Reveal delay={0.03}>
@@ -464,7 +582,9 @@ export function DiagnosticShell() {
                     disabled={!canProceed(step, answers)}
                     className="inline-flex items-center gap-2 rounded bg-ink px-6 py-3 text-[13.5px] font-medium text-paper transition-colors hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    {step === STEP_LABELS.length - 1 ? dict.diagnosticShell.review : dict.diagnosticShell.next}
+                    {step === STEP_LABELS.length - 1
+                      ? dict.diagnosticShell.review
+                      : dict.diagnosticShell.next}
                     <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </button>
                 </div>
@@ -485,27 +605,59 @@ export function DiagnosticShell() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
         >
-          <Container className="max-w-2xl py-16">
-            <ReviewScreen
-              answers={answers}
-              onEdit={(s) => {
-                setStep(s);
-                setScreen("form");
-              }}
-              onSubmit={submit}
-            />
+          {/*
+           * `<Container className="max-w-2xl">` did not do what it reads
+           * like it does. `Container` already sets `max-w-site`, a custom
+           * `maxWidth` extension, and Tailwind emits extensions after the
+           * core scale — so `max-w-site` won and the review column
+           * rendered at the full 1200px rather than the intended 672px.
+           * That is why each row had a label at the far left and its
+           * `EDIT` affordance ~1200px away at the far right.
+           *
+           * Nesting the narrow wrapper inside is the pattern `Container`
+           * documents for exactly this, and it cannot silently lose to a
+           * utility on the same element.
+           */}
+          <Container className="py-16">
+            {/*
+             * Left-aligned, not centred. Centring it moved the submit
+             * control to the middle of the page, where the fixed
+             * bottom-centre consent banner covered it — the primary
+             * action of the screen became unclickable, which Playwright's
+             * actionability check caught immediately. Left alignment also
+             * matches the intro and question screens, and leaves a wider
+             * gutter for the scene.
+             */}
+            <div className="max-w-2xl">
+              <ReviewScreen
+                answers={answers}
+                onEdit={(s) => {
+                  setStep(s);
+                  setScreen("form");
+                }}
+                onSubmit={submit}
+              />
+            </div>
           </Container>
         </motion.div>
       )}
 
       {screen === "submitting" && (
-        <motion.div key="submitting" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div
+          key="submitting"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
           <SubmitTransition onDone={onSubmitDone} />
         </motion.div>
       )}
 
       {screen === "submit_error" && (
-        <motion.div key="submit_error" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div
+          key="submit_error"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
           <Container className="flex min-h-[50vh] flex-col items-center justify-center py-20 text-center">
             <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
               {dict.diagnosticSubmitError.label}

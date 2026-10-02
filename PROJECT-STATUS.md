@@ -63,30 +63,22 @@ Configuration is not evidence of working behaviour.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
 - **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
-- **Diagnostic graphic — UNFINISHED. Only the entry sphere is active.**
+- **Diagnostic graphic — all stages active and verified through the real
+  journey.** See §9 for the evidence and the two remaining limitations.
 
   | Stage | State |
   |---|---|
-  | Entry sphere | **Active** on `/diagnostic`, desktop ≥1024px |
-  | Topic layers (question stages) | **Disabled** — code written, not mounted |
-  | Review stack | **Disabled** — code written, not mounted |
-  | Mark closure (success) | **Disabled** — code written, not mounted |
+  | Entry sphere | **Active**, desktop ≥1024px |
+  | Topic layers (question stages) | **Active**, desktop ≥1024px |
+  | Review stack (review / submitting / submit error) | **Active**, desktop ≥1280px |
+  | Mark closure (result / profile) | **Active**, result ≥1280px, profile ≥1024px |
 
-  The three disabled stages have passing unit tests, and that is **not**
-  evidence they work. The tests cover the state mapping only — which stage
-  a screen maps to, and that success cannot be reached before persistence.
-  Nothing has rendered them, nobody has looked at them, and their
-  composition against the form and the profile panel is unresolved.
-  Treat them as unfinished.
+  The earlier note here said these were unmounted because running the
+  scene through the question and submit screens destabilised submission.
+  That was a misattribution: the cause was a stale-coordinate race in the
+  test harness (§8), not the scene. With it fixed, the full journey runs
+  with the scene mounted throughout — 42/42 over three repeats.
 
-  They are unmounted because running the scene through the question and
-  submit screens measurably destabilised submission: three specs began
-  failing intermittently at the estimate screen, and restricting the mount
-  to `intro` restored 45 passing. Bisected — it is **not** the `after()`
-  dispatch; disabling that made it worse.
-
-  Projected labels use the real step names and work, but are only visible
-  on the stages that are currently disabled.
 - ~~**The estimate-screen transition is flaky under load.**~~ **Resolved** — it was a stale-coordinate race in the test harness, not a product defect. Diagnosed, measured and fixed; see §8. `workers: 1` stays, for the separate WebGL-contention reason.
 - **Auth screen visual parity unverified** against the MODUS reference.
 
@@ -115,7 +107,7 @@ Configuration is not evidence of working behaviour.
 4. Grant admin explicitly: `node scripts/grant-admin.mjs user_…` against the production database. Never from an email match or provider.
 5. Test in production: admin reaches the inbox; a second ordinary account and an anonymous request are both rejected on page, API and mutation; revocation takes effect on the next request.
 6. Agree a test arrangement before sending to `hello@withmodus.co`; confirm **user-reported receipt**, not just provider acceptance.
-7. Finish the sphere→stack graphic and the auth-screen visual comparison.
+7. ~~Finish the sphere→stack graphic~~ **done, see §9**; the auth-screen visual comparison is still open.
 
 ---
 
@@ -234,10 +226,108 @@ repeat count alone would not give.
 ### What this unblocks
 
 Re-enabling the diagnostic graphic's later stages (topic layers, review
-stack, mark closure) was blocked on this. The flake is no longer a reason
-to keep them disabled — but they are still **unmounted and unfinished**,
-and §3's entry stands: their passing unit tests cover the state mapping
-only. Re-enabling them is its own task, with its own verification.
+stack, mark closure) was blocked on this. They have since been re-enabled
+and verified through the real journey — see §9. (At the time of writing
+this section they were still **unmounted and unfinished**,
+and their passing unit tests covered the state mapping only.)
 
 `workers: 1` stays. It was set for GPU contention between concurrent
 WebGL contexts, which is a separate and still-real constraint.
+
+## 9. Diagnostic graphic — re-enabled and verified
+
+All four stages are mounted and driven by the real screen and step. The
+unit tests were never evidence that they worked: they assert the state
+mapping only. What follows was verified against the running app.
+
+### Verified through the journey
+
+`e2e/diagnosticScene.spec.ts`, at 1440×900:
+
+- **Every stage mounts and renders.** Entry sphere, topic layers, review
+  stack, and the closure on both `result` and `profile`.
+- **The active topic tracks the real step.** Asserted on the projected
+  labels' own inline opacity, which is written by the render path — so it
+  reports what actually rendered, not what the mapping function returns.
+  Step 1 emphasises `Business`, step 2 `Customers`, and pressing Back
+  resolves to the earlier layer rather than queueing.
+- **Labels belong to the question stages only.** Naming topics at entry
+  would imply progress that has not happened; the stack and closure are
+  unlabelled.
+- **Submission failure holds the review stack.** The scene never
+  anticipates success: on a 500 it stays in the stack, stays unlabelled,
+  and the estimate screen is asserted absent.
+- **Reduced motion advances the stages without animating them.** This
+  caught a real bug — see below.
+- **Below each layout's threshold nothing is mounted**, so there is no
+  WebGL context at all, rather than a hidden canvas.
+- **The scene stays clear of the content.** Asserted geometrically
+  against the fields, the question heading, the submit control, every
+  per-row EDIT control, and each screen's heading. Headings are measured
+  by their rendered glyphs (via `Range.getClientRects`) rather than their
+  border box, because a block heading fills its column even when its text
+  does not.
+
+Screenshots: `e2e-screens/` (gitignored), 11 captures across the journey,
+including the reduced-motion stages. Each is taken after the stage has
+settled and with the page scroll parked, so it shows what a visitor sees
+rather than a mid-morph frame.
+
+### Three bugs this found
+
+1. **Reduced motion froze the scene.** With no frame loop running,
+   nothing picked up a stage change — a visitor who prefers reduced
+   motion would have seen the entry sphere for the entire journey. It was
+   invisible while the scene only mounted on `intro`, where the stage
+   never changes. The composition is now re-rendered once per stage
+   change: no motion, but not no information.
+
+2. **The review column was never the width it was written to be.**
+   `<Container className="max-w-2xl">` could not work — `Container`
+   already sets `max-w-site`, a custom `maxWidth` extension, and Tailwind
+   emits extensions after the core scale, so `max-w-site` won. The review
+   column rendered at the full 1200px, which is why each row had its
+   label at the far left and its `EDIT` control ~1200px away at the far
+   right. The narrow wrapper is now nested inside, per the pattern
+   `Container` documents.
+
+3. **Centring that column put the submit control under the consent
+   banner.** The banner is fixed bottom-centre; centring the review
+   column moved the primary action beneath it. Playwright's actionability
+   check caught it immediately, where the old hand-rolled press would
+   have clicked the banner and reported a timeout somewhere else
+   entirely. The column is left-aligned, matching the intro and question
+   screens.
+
+The scene was also pinned to `right-0` — the viewport edge, not the
+content container — so on a wide screen it sat 120px right of the content
+and its projected labels were clipped by the window. It now mirrors the
+page `Container`.
+
+### Two limitations, stated plainly
+
+- **The topic layers share a column with the `sticky` ProfilePanel.** At
+  the top of the form screen the layers sit cleanly below the panel; once
+  scrolled to the bottom the panel follows down and covers their upper
+  portion, so roughly four of the six layers are visible at any given
+  scroll position. Any height that avoids this at one scroll position
+  makes it worse at the other. Moving the scene into that column in
+  normal flow would fix it, but would remount the canvas between screens
+  and so destroy the persistent point identities that make the four
+  states read as one object being reorganised. Left as is, deliberately.
+- **The review-family and result stages need ≥1280px**, not 1024px,
+  because those layouts are a narrow column or a dense grid whose only
+  free space is the page gutter. Between 1024 and 1280 the entry sphere
+  and topic layers appear but the stack and the result closure do not.
+
+### Evidence
+
+- `e2e/diagnosticScene.spec.ts`: 4 tests, all passing.
+- Full e2e suite: **50 passed, 1 skipped** (the skip needs
+  `E2E_ADMIN_PASSWORD`), up from 46.
+- Submit specs plus the scene spec at `--repeat-each=3`: **42/42**, with
+  the scene mounted through the whole journey including submit.
+- `npx tsc --noEmit` clean; `npx vitest run` 50 passed.
+- `workers: 1` unchanged, as asked — it is set for GPU contention between
+  concurrent WebGL contexts, which this change makes more relevant, not
+  less.
