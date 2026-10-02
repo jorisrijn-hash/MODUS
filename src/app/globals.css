@@ -494,3 +494,61 @@
     }
   }
 }
+
+@layer utilities {
+  /* Scroll-cue arrow. Deliberately tiny (4px) and slow: a hint, not a
+     bounce. Applied via Tailwind's `motion-safe:` variant, and the global
+     prefers-reduced-motion block neutralises it as well. */
+  @keyframes nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(4px);
+    }
+  }
+}
+
+@layer components {
+  /* Long-form legal/policy prose. 17px with generous leading, held to a
+     ~68ch measure by the article wrapper. Print styles drop the chrome so
+     these pages are actually printable, which matters for terms. */
+  .legal-prose {
+    font-size: 17px;
+    line-height: 1.75;
+    color: rgb(var(--text-secondary));
+  }
+
+  .legal-prose p {
+    margin-top: 1rem;
+  }
+
+  .legal-prose ul {
+    margin-top: 0.75rem;
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  .legal-prose li {
+    margin-top: 0.375rem;
+  }
+
+  .legal-prose h3 {
+    margin-top: 1.75rem;
+    font-weight: 500;
+    color: rgb(var(--text-primary));
+  }
+
+  .legal-prose strong {
+    font-weight: 500;
+    color: rgb(var(--text-primary));
+  }
+
+  @media print {
+    .legal-prose {
+      font-size: 11pt;
+      color: #000;
+    }
+  }
+}

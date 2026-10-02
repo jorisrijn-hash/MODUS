@@ -101,10 +101,34 @@ function webglAvailable(): boolean {
  *    loop, and the frame delta is capped at 0.05s so a backgrounded tab
  *    does not resume with one enormous step.
  */
-export function HeroScene({ className = "" }: { className?: string }) {
+export function HeroScene({
+  className = "",
+  bubbles = [],
+  cue,
+  bubblesNote,
+}: {
+  className?: string;
+  /** Short process messages shown one at a time over the scene. */
+  bubbles?: readonly string[];
+  /** Quiet interaction hint, e.g. "Drag to explore". */
+  cue?: string;
+  /** One static sentence explaining that the bubbles are illustrative. */
+  bubblesNote?: string;
+}) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackRef = useRef<HTMLParagraphElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const bubbleTextRef = useRef<HTMLSpanElement>(null);
+  // Read inside the frame loop; a ref avoids rebuilding the whole scene
+  // effect (and the WebGL context with it) when the dictionary object
+  // identity changes on a locale switch. Synced in an effect rather than
+  // during render, so the scene picks up translated copy on its next
+  // bubble without being torn down.
+  const bubblesRef = useRef<readonly string[]>(bubbles);
+  useEffect(() => {
+    bubblesRef.current = bubbles;
+  }, [bubbles]);
   const reducedMotion = usePrefersReducedMotion();
   const resolvedTheme = useResolvedTheme();
 
@@ -355,6 +379,97 @@ export function HeroScene({ className = "" }: { className?: string }) {
     };
     window.addEventListener("blur", onBlur);
 
+    // --- Process bubbles --------------------------------------------------
+    // One bubble at a time, roughly every 5s of VISIBLE ACTIVE time: the
+    // clock is `elapsed`, which only advances while the frame loop runs,
+    // so an offscreen or hidden-tab scene accrues no backlog and resumes
+    // with a normal gap instead of a burst.
+    //
+    // This rides the existing render loop. It deliberately does not start
+    // a second rAF, and it never touches scroll state, so it cannot affect
+    // the page's scroll-linked motion.
+    const BUBBLE_FIRST_DELAY = 1.6; // quiet beat after the scene appears
+    const BUBBLE_HOLD = 3.0;
+    const BUBBLE_GAP = 2.0; // hold + gap ~= one bubble per 5s
+    const BUBBLE_FADE = 0.25;
+    // Mobile omits them rather than covering the scene with a card that
+    // barely fits; reduced motion shows one static label instead.
+    const bubblesEnabled = !lowQuality && !reducedMotion;
+
+    let bubbleIndex = -1;
+    let bubbleNode = 0;
+    let bubbleShownAt = -Infinity;
+    let bubbleVisible = false;
+    let nextBubbleAt = BUBBLE_FIRST_DELAY;
+    const bubbleEl = bubbleRef.current;
+    const bubbleTextEl = bubbleTextRef.current;
+
+    function pickBubble() {
+      const list = bubblesRef.current;
+      if (!list.length) return;
+      // Rotate without an immediate repeat.
+      bubbleIndex = list.length === 1 ? 0 : (bubbleIndex + 1 + Math.floor(rng() * (list.length - 1))) % list.length;
+      // Anchor to a node the scene actually gives meaning to: a green
+      // ("colored") node, i.e. one the illustration marks as a signal.
+      let tries = 0;
+      do {
+        bubbleNode = Math.floor(rng() * count);
+        tries++;
+      } while (!cloud.colored[bubbleNode] && tries < 24);
+      if (bubbleTextEl) bubbleTextEl.textContent = list[bubbleIndex];
+    }
+
+    const projected = new THREE.Vector3();
+
+    function updateBubble(dt: number) {
+      if (!bubblesEnabled || !bubbleEl) return;
+      void dt;
+
+      if (!bubbleVisible && elapsed >= nextBubbleAt) {
+        pickBubble();
+        bubbleVisible = true;
+        bubbleShownAt = elapsed;
+        bubbleEl.dataset.state = "in";
+      } else if (bubbleVisible && elapsed - bubbleShownAt > BUBBLE_HOLD) {
+        bubbleVisible = false;
+        bubbleEl.dataset.state = "out";
+        nextBubbleAt = elapsed + BUBBLE_FADE + BUBBLE_GAP;
+      }
+
+      if (!bubbleVisible && elapsed - bubbleShownAt > BUBBLE_HOLD + BUBBLE_FADE) return;
+
+      // Project the node's CURRENT world position through the live camera
+      // into canvas-relative CSS pixels, every frame. The cloud rotates
+      // and breathes continuously, so a fixed offset would detach.
+      projected.set(
+        positions[bubbleNode * 3],
+        positions[bubbleNode * 3 + 1],
+        positions[bubbleNode * 3 + 2]
+      );
+      root.localToWorld(projected);
+      projected.project(camera);
+
+      const w = canvas!.clientWidth;
+      const h = canvas!.clientHeight;
+      // Behind the camera, or outside the frame: suppress rather than
+      // pin a label to a point that is not really there.
+      if (projected.z > 1 || Math.abs(projected.x) > 1 || Math.abs(projected.y) > 1) {
+        bubbleEl.dataset.state = "out";
+        return;
+      }
+      const px = (projected.x * 0.5 + 0.5) * w;
+      const py = (-projected.y * 0.5 + 0.5) * h;
+
+      // Clamp inside the graphic with edge padding so a bubble never
+      // hangs off the canvas or drifts over the headline column.
+      const bw = bubbleEl.offsetWidth || 180;
+      const bh = bubbleEl.offsetHeight || 34;
+      const pad = 12;
+      const x = Math.min(Math.max(px + 14, pad), Math.max(pad, w - bw - pad));
+      const y = Math.min(Math.max(py - bh - 10, pad), Math.max(pad, h - bh - pad));
+      bubbleEl.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+    }
+
     // --- Frame loop -------------------------------------------------------
     const lifecycles = createLifecycles(count, rng, 0);
     let elapsed = 0;
@@ -450,6 +565,8 @@ export function HeroScene({ className = "" }: { className?: string }) {
         root.rotation.x = rotX + 0.06 * Math.sin(0.035 * elapsed);
       }
 
+      updateBubble(dt);
+
       renderer.render(scene, camera);
     }
 
@@ -538,7 +655,12 @@ export function HeroScene({ className = "" }: { className?: string }) {
         // a phone: horizontal drag rotates the cloud, vertical drag still
         // scrolls the page, and the browser decides which without us
         // calling preventDefault on every touchmove.
-        className="absolute touch-pan-y"
+        // `cursor-pointer` is the hand the scene was missing: the canvas is
+        // the real hit area and it really does respond to dragging, so the
+        // cursor now says so. `active:cursor-grabbing` marks the drag
+        // itself. Nothing above it intercepts — the copy column sits beside
+        // it, and the bubble overlay below is pointer-events-none.
+        className="absolute cursor-pointer touch-pan-y active:cursor-grabbing"
         aria-hidden="true"
       />
       {/* Complete static fallback for WebGL failure, not a blank box.
@@ -557,12 +679,43 @@ export function HeroScene({ className = "" }: { className?: string }) {
         A network of the people, processes and tools in a business — resolving into a single
         connected picture.
       </p>
+      {/*
+       * Process bubble. Purely decorative and `aria-hidden`: a rotating
+       * synthetic message must never be announced, and it must never steal
+       * focus or block the scene, hence `pointer-events-none`. Its single
+       * static explanation lives in the sr-only paragraph below.
+       *
+       * Positioned by `transform` written directly from the frame loop —
+       * no React state per frame.
+       */}
+      <div
+        ref={bubbleRef}
+        data-state="out"
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-0 z-20 flex max-w-[15rem] items-center gap-2 rounded-md border border-line/70 bg-surface/95 px-3 py-2 text-[12.5px] leading-snug text-ink shadow-[0_6px_20px_-12px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-[opacity,translate] duration-200 ease-modus data-[state=in]:translate-y-0 data-[state=in]:opacity-100 data-[state=out]:translate-y-1 data-[state=out]:opacity-0"
+      >
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-modus" />
+        <span ref={bubbleTextRef} />
+      </div>
+
+      {/* Quiet, accurate interaction cue. The scene really does respond to
+          dragging, so this is what it says — and it is hidden on coarse
+          pointers, where there is no drag-to-rotate affordance to hint at. */}
+      {cue ? (
+        <span // Sits on a translucent chip: at rest it was printing straight
+          // over the point cloud and the dots cut through the letterforms.
+          className="pointer-events-none absolute bottom-0 right-0 z-20 hidden rounded-full bg-paper/75 px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted backdrop-blur-[2px] md:[@media(hover:hover)]:block">
+          {cue}
+        </span>
+      ) : null}
+
       {/* The canvas is decorative; this is the accessible equivalent. It is
           a static description, not a live region — the signal labels must
           never be announced repeatedly. */}
       <span className="sr-only">
         A rotating three-dimensional network of points that organises into a sphere, representing
         the connections MODUS maps across a business.
+        {bubblesNote ? ` ${bubblesNote}` : null}
       </span>
     </div>
   );

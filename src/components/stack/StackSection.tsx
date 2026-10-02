@@ -224,15 +224,21 @@ export function StackSection() {
           </div>
         </div>
 
+        {/*
+         * Story column ~32% (clamped to 300-350px), scene column the
+         * remaining ~68%. Previously the story column was a fixed 460px
+         * and the scene took whatever was left, which made the cards the
+         * dominant element and the diagram an afterthought.
+         */}
         <div className="mt-16 lg:mt-24 lg:flex lg:gap-scene-gap">
           {/* Story column: three real 100vh wrappers on desktop, so the
               scroll travel the timeline maps onto is genuine layout rather
               than an invented scroll length. */}
-          <div className="lg:w-story lg:shrink-0">
+          <div className="lg:w-[clamp(300px,32%,350px)] lg:shrink-0">
             {t.steps.map((step, i) => (
               <div
                 key={step.id}
-                className="pb-8 lg:h-screen lg:pb-16"
+                className="pb-8 lg:h-screen lg:pb-12"
                 // Trigger source for this card's heading reveal. The
                 // heading itself sits inside a sticky card, so once the
                 // card sticks its viewport position stops tracking scroll
@@ -250,7 +256,13 @@ export function StackSection() {
                 }}
               >
                 <div className="lg:sticky lg:top-32">
-                  <BracketFrame tone={active === i ? "active" : "inactive"}>
+                  <BracketFrame
+                    tone={active === i ? "active" : "inactive"}
+                    // Tighter than the default frame padding: these cards sit
+                    // beside the scene and should not dominate it. Body text
+                    // size is held readable; only padding and gaps shrink.
+                    className="p-5 md:p-6"
+                  >
                     <p
                       className={`font-mono text-label uppercase ${
                         active === i ? "text-[rgb(var(--surface-inverted-foreground))]/70" : "text-muted"
@@ -260,11 +272,11 @@ export function StackSection() {
                     </p>
                     {/* The three stack story headings — the primary target
                         of the masked reveal. Default mode (lines). */}
-                    <h3 key={locale} data-split="heading" className="mt-5 font-serif text-display-sub">
+                    <h3 key={locale} data-split="heading" className="mt-4 font-serif text-[21px] leading-[1.2] md:text-[24px]">
                       {step.heading}
                     </h3>
                     <p
-                      className={`mt-5 text-[14px] leading-relaxed ${
+                      className={`mt-4 text-[13.5px] leading-relaxed ${
                         active === i
                           ? "text-[rgb(var(--surface-inverted-foreground))]/75"
                           : "text-graphite"

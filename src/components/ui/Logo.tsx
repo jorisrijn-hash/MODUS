@@ -1,18 +1,6 @@
 type Tone = "dark" | "light" | "invert";
 type Size = "sm" | "md" | "lg" | "xl";
 
-const lineColor: Record<Tone, string> = {
-  dark: "#151716",
-  light: "#FAFAF8",
-  invert: "#FFFFFF",
-};
-
-const squareColor: Record<Tone, string> = {
-  dark: "#123C2D",
-  light: "#123C2D",
-  invert: "#FFFFFF",
-};
-
 const markSize: Record<Size, string> = {
   sm: "h-5 w-5",
   md: "h-7 w-7",
@@ -35,38 +23,63 @@ const taglineSize: Record<Size, string> = {
 };
 
 /**
- * The supplied mark as a green rounded tile with white figure — the form
- * in `assets/modus-logo-source.png`, which is preserved unchanged at
- * `/public/brand/modus-logo-source.png` (1362×1368, effectively square).
+ * The MODUS mark: a centre square with four detached orthogonal bars.
  *
- * THIS SVG IS A RECONSTRUCTION, not the original vector. No original SVG
- * was supplied. It is traced from the raster's proportions — a centred
- * square with four detached orthogonal bars, white on `#1E3B2E`, on a
- * rounded-square tile — and should be replaced the moment an authoritative
- * vector export exists. It is not presented as the official asset.
+ * NO TILE. The green rounded-square tile this used to draw is gone — the
+ * geometry now sits directly on whatever surface is behind it, which is
+ * what the brief asks for and what lets the dock read as part of the page
+ * rather than as a sticker on top of it. "Transparent background" here
+ * means the tile is genuinely absent, not repainted in the canvas colour.
  *
- * The figure is deliberately the same geometry `LogoMark` below already
- * drew; that component was already correct and is not an invented M or a
- * three-bar substitute. Only the tile and the white-on-green treatment
- * are new.
+ * Everything is `currentColor`, so the mark is theme-safe by construction:
+ * ink on light surfaces, cream on genuinely dark ones, inherited from
+ * whatever sets `color` on the ancestor. No tone prop, no hardcoded hex,
+ * nothing to keep in sync with the token system.
+ *
+ * The geometry is traced from the supplied raster at
+ * `/public/brand/modus-logo-source.png` (1362x1368, effectively square)
+ * and is a RECONSTRUCTION, not an original vector export. Proportions are
+ * unchanged from the tiled version that preceded it — only the tile and
+ * the white fill were removed.
  */
-export function LogoTile({ className = "" }: { className?: string }) {
+export function LogoGlyph({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 100 100" className={className} aria-hidden="true" focusable="false">
-      <rect width="100" height="100" rx="22" fill="#1E3B2E" />
-      <g fill="#FFFFFF">
-        {/* centre square */}
-        <rect x="43" y="43" width="14" height="14" />
-        {/* four detached orthogonal bars */}
-        <rect x="47.5" y="16" width="5" height="22" />
-        <rect x="47.5" y="62" width="5" height="22" />
-        <rect x="16" y="47.5" width="22" height="5" />
-        <rect x="62" y="47.5" width="22" height="5" />
-      </g>
+    <svg
+      viewBox="0 0 100 100"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+      fill="currentColor"
+    >
+      {/* centre square */}
+      <rect x="43" y="43" width="14" height="14" />
+      {/* four detached orthogonal bars */}
+      <rect x="47.5" y="16" width="5" height="22" />
+      <rect x="47.5" y="62" width="5" height="22" />
+      <rect x="16" y="47.5" width="22" height="5" />
+      <rect x="62" y="47.5" width="22" height="5" />
     </svg>
   );
 }
 
+/**
+ * Deprecated alias kept so existing imports keep compiling while call
+ * sites migrate. Renders the bare glyph; it no longer draws a tile.
+ */
+export const LogoTile = LogoGlyph;
+
+/**
+ * The mark with a tone hint, for call sites that cannot set `color`
+ * themselves. Delegates to `LogoGlyph` — same geometry, no tile.
+ *
+ * This previously drew its bars in a hardcoded `#151716` and its centre
+ * square in `#123C2D`: both stale pre-rebuild values that no longer exist
+ * in the token system (ink is now #1A1614, green #1E3B2E), so every
+ * diagnostic, admin, chatbot and app-sidebar mark was quietly rendering
+ * in the old palette. Routing through tokens fixes that everywhere at
+ * once and gives the bare ink mark the brief asks for in the diagnostic,
+ * auth and admin headers.
+ */
 export function LogoMark({
   tone = "dark",
   className = "",
@@ -74,17 +87,10 @@ export function LogoMark({
   tone?: Tone;
   className?: string;
 }) {
-  const line = lineColor[tone];
-  const square = squareColor[tone];
-  return (
-    <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
-      <line x1="0" y1="50" x2="38" y2="50" stroke={line} strokeWidth="4" />
-      <line x1="62" y1="50" x2="100" y2="50" stroke={line} strokeWidth="4" />
-      <line x1="50" y1="0" x2="50" y2="38" stroke={line} strokeWidth="4" />
-      <line x1="50" y1="62" x2="50" y2="100" stroke={line} strokeWidth="4" />
-      <rect x="42" y="42" width="16" height="16" fill={square} />
-    </svg>
-  );
+  // "dark" = a dark mark for a light surface; "light"/"invert" = a light
+  // mark for a genuinely dark one.
+  const color = tone === "dark" ? "text-ink" : "text-inverted-foreground";
+  return <LogoGlyph className={`${color} ${className}`} />;
 }
 
 function Wordmark({ tone, size }: { tone: Tone; size: Size }) {

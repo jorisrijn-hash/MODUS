@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowDown } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Reveal } from "@/components/ui/Reveal";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
@@ -41,8 +42,25 @@ export function Hero() {
   const t = dict.home.hero;
 
   return (
-    <section className="relative overflow-hidden pb-24 pt-36 md:pb-32 md:pt-44">
-      <Container>
+    <section
+      id="hero"
+      /*
+       * Full viewport, edge to edge.
+       *
+       * `min-h-svh`, not `h-screen`: the small-viewport unit is stable
+       * while mobile browser chrome shows and hides, so the hero does not
+       * resize under the reader mid-scroll. And `min-h`, not `h`, so the
+       * section is allowed to GROW — at short window heights, 200% browser
+       * zoom or large text the content pushes the section taller instead
+       * of the CTA being cropped to force an exact viewport height.
+       *
+       * The dock is a fixed 80px header, so the top padding clears it
+       * rather than letting the eyebrow slide underneath. Safe-area insets
+       * keep the scroll cue clear of a home indicator.
+       */
+      className="relative flex min-h-svh flex-col overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] pt-32 md:pt-40"
+    >
+      <Container className="flex flex-1 flex-col justify-center">
         <div className="flex flex-col gap-14 lg:flex-row lg:items-center lg:gap-[calc(64*var(--sf))]">
           {/* Copy column. */}
           <div className="relative z-10 max-w-hero-text flex-1">
@@ -119,10 +137,33 @@ export function Hero() {
               mobile. `HeroScene` reads this element's box with a
               ResizeObserver and overscans its canvas around that centre. */}
           <div className="relative w-full lg:w-[calc(417*var(--sf))] lg:shrink-0">
-            <HeroScene className="h-[280px] w-full lg:h-[calc(400*var(--sf))]" />
+            <HeroScene
+              className="h-[280px] w-full lg:h-[calc(400*var(--sf))]"
+              bubbles={t.sceneBubbles}
+              cue={t.sceneCue}
+              bubblesNote={t.sceneBubblesNote}
+            />
           </div>
         </div>
       </Container>
+
+      {/*
+       * Scroll cue. A real anchor to the next section, not a decorative
+       * glyph: it has a genuine hit area, a visible focus ring and works
+       * from the keyboard. It does not capture or hijack scroll — the
+       * browser handles the jump, and the shared Lenis controller smooths
+       * it like any other in-page anchor.
+       */}
+      <a
+        href="#manifesto"
+        className="group absolute inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-2 px-4 py-2 text-muted transition-colors duration-200 ease-modus hover:text-ink"
+      >
+        <span className="font-mono text-[11px] uppercase tracking-[0.14em]">{t.scrollCue}</span>
+        <ArrowDown
+          className="h-4 w-4 motion-safe:animate-[nudge_2.4s_ease-in-out_infinite]"
+          strokeWidth={1.5}
+        />
+      </a>
     </section>
   );
 }

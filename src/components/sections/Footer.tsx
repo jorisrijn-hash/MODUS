@@ -95,13 +95,14 @@ export function Footer() {
             <LanguageSwitch tone="light" />
           </div>
           <div className="flex items-center gap-5">
-            <a
-              href="#"
+            {/* Was href="#": a dead placeholder. Now the real route. */}
+            <Link
+              href="/privacypolicy"
               aria-label={dict.footer.privacy}
               className="text-[12.5px] text-inverted-foreground/45 hover:text-inverted-foreground/80"
             >
               {dict.footer.privacy}
-            </a>
+            </Link>
             <button
               type="button"
               onClick={() => openConsentPreferences()}
@@ -109,13 +110,13 @@ export function Footer() {
             >
               {dict.footer.privacyPreferences}
             </button>
-            <a
-              href="#"
+            <Link
+              href="/legal"
               aria-label={dict.footer.legal}
               className="text-[12.5px] text-inverted-foreground/45 hover:text-inverted-foreground/80"
             >
               {dict.footer.legal}
-            </a>
+            </Link>
             <a
               href="#"
               aria-label={dict.footer.linkedin}

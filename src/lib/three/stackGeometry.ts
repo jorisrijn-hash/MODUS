@@ -15,8 +15,6 @@ export const FRONT_Z = 160;
 export const OCCLUSION_Z = -185;
 export const HIDDEN_Z = -400;
 export const PRODUCTION_OFFSET = 601;
-/** 12% breathing room around the reference frame. */
-export const FIT_MARGIN = 1.12;
 
 export interface StackRect {
   id: string;
@@ -78,7 +76,45 @@ export function toWorld(rect: Pick<StackRect, "left" | "top" | "width" | "height
 }
 
 /**
- * Orthographic frustum that fits the reference frame with 12% margin.
+ * World-space half-extents of the ACTUAL geometry, computed from the rects
+ * rather than assumed from the reference frame.
+ *
+ * The fit used to be the full 1512x1219 reference canvas, but the panels
+ * only occupy 1272x1059 of it — the rest is the study's own page padding.
+ * Fitting to the padded frame meant the diagram rendered about 19% smaller
+ * than it needed to and left a wide empty border, which is why enlarging
+ * the container alone never made the scene look bigger.
+ */
+function contentHalfExtents(): { halfW: number; halfH: number } {
+  let halfW = 0;
+  let halfH = 0;
+  for (const r of STACK_RECTS) {
+    const { x, y } = toWorld(r);
+    halfW = Math.max(halfW, Math.abs(x) + r.width / 2);
+    halfH = Math.max(halfH, Math.abs(y) + r.height / 2);
+  }
+  return { halfW, halfH };
+}
+
+/**
+ * Margin around that content.
+ *
+ * It has to survive the most demanding state, not the flat one. At maximum
+ * tilt (root X -0.48 rad, Y -0.36 rad) a box of depth 320 swings its own
+ * corners outward, so the projected extent grows by roughly
+ * `halfDepth * sin(angle)` while the face shrinks by `cos(angle)`:
+ *
+ *   x: 636*cos(0.36) + 160*sin(0.36) ~= 651   (vs 636 flat)
+ *   y: 529.5*cos(0.48) + 160*sin(0.48) ~= 544 (vs 529.5 flat)
+ *
+ * So the tilted state needs about 3% more room than the flat one. 1.12
+ * covers that with headroom left over for the projected HTML labels that
+ * sit just outside the panels.
+ */
+export const FIT_MARGIN = 1.12;
+
+/**
+ * Orthographic frustum that fits the real geometry with that margin.
  * Which dimension binds depends on the viewport aspect — getting this
  * backwards crops the diagram instead of letterboxing it.
  */
@@ -86,11 +122,13 @@ export function fitFrustum(viewportAspect: number): {
   halfWidth: number;
   halfHeight: number;
 } {
-  if (viewportAspect > REF_WIDTH / REF_HEIGHT) {
-    const halfHeight = (FIT_MARGIN * REF_HEIGHT) / 2;
+  const { halfW, halfH } = contentHalfExtents();
+  const contentAspect = halfW / halfH;
+  if (viewportAspect > contentAspect) {
+    const halfHeight = FIT_MARGIN * halfH;
     return { halfHeight, halfWidth: halfHeight * viewportAspect };
   }
-  const halfWidth = (FIT_MARGIN * REF_WIDTH) / 2;
+  const halfWidth = FIT_MARGIN * halfW;
   return { halfWidth, halfHeight: halfWidth / viewportAspect };
 }
 

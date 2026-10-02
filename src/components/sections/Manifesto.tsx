@@ -22,7 +22,8 @@ export function Manifesto() {
   const lines = dict.home.manifesto.lines;
 
   return (
-    <section className="py-28 md:py-40">
+    // `id` is the hero scroll cue's anchor target.
+    <section id="manifesto" className="scroll-mt-24 py-28 md:py-40">
       <Container>
         <div className="mx-auto max-w-[calc(900*var(--sf))] text-center">
           {lines.map((line, i) => (

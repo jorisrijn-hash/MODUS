@@ -705,6 +705,17 @@ export const nl: Dictionary = {
       body: "MODUS verbindt je mensen, processen en systemen. Zie wat je tegenhoudt, en verbeter wat er echt toe doet.",
       ctaPrimary: "Start een Diagnose",
       ctaSecondary: "Bekijk Hoe Het Werkt",
+      scrollCue: "Scroll om te ontdekken",
+      sceneCue: "Sleep om te verkennen",
+      sceneBubbles: [
+        "Frictie gedetecteerd",
+        "Overdracht in kaart",
+        "Verbetering gevonden",
+        "Workflow verbonden",
+        "Voortgang bekeken",
+      ],
+      sceneBubblesNote:
+        "Het netwerk illustreert het soort signalen waar een MODUS-diagnose naar kijkt. Het is een illustratie, geen analyse van jouw bedrijf.",
       rotatingPrefix: "Op dit moment in analyse:",
       examining: [
         "KLANTINTAKE",

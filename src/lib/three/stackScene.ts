@@ -74,18 +74,16 @@ function panelTexture(
     // The MODUS mark with ample negative space, drawn procedurally from
     // the same proportions as the supplied raster rather than loaded as an
     // image — no async asset, no CORS, no texture-ready race.
+    // Bare mark, no tile: the green rounded square that used to sit
+    // behind this glyph is gone, matching the DOM logo. The geometry is
+    // drawn in ink directly on the panel surface.
     const size = Math.min(canvas.width, canvas.height) * 0.42;
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     const u = size / 100;
-    ctx.fillStyle = palette.green;
-    const r = 22 * u;
     const x0 = cx - size / 2;
     const y0 = cy - size / 2;
-    ctx.beginPath();
-    ctx.roundRect(x0, y0, size, size, r);
-    ctx.fill();
-    ctx.fillStyle = "#FFFFFF";
+    ctx.fillStyle = palette.ink;
     ctx.fillRect(x0 + 43 * u, y0 + 43 * u, 14 * u, 14 * u);
     ctx.fillRect(x0 + 47.5 * u, y0 + 16 * u, 5 * u, 22 * u);
     ctx.fillRect(x0 + 47.5 * u, y0 + 62 * u, 5 * u, 22 * u);

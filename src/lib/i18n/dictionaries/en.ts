@@ -724,6 +724,17 @@ export const en = {
       body: "MODUS connects the dots between your people, processes and tools. See what holds you back, and improve what actually matters.",
       ctaPrimary: "Run a Diagnostic",
       ctaSecondary: "See How It Works",
+      scrollCue: "Scroll to explore",
+      sceneCue: "Drag to explore",
+      sceneBubbles: [
+        "Friction detected",
+        "Handoff mapped",
+        "Improvement identified",
+        "Workflow connected",
+        "Progress reviewed",
+      ],
+      sceneBubblesNote:
+        "The network illustrates the kinds of signal a MODUS diagnostic looks for. It is an illustration, not an analysis of your business.",
       rotatingPrefix: "Currently examining:",
       examining: [
         "CUSTOMER INTAKE",
