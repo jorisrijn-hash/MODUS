@@ -22,7 +22,11 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 
 // Load .env.local without printing anything from it.
-for (const file of [".env.local", ".env"]) {
+// `.env.supabase.local` FIRST: it holds the Supabase connection and
+// must win over the local Postgres in `.env`. Keeping it out of
+// `.env.local` is what stops the dev server and the e2e suite from
+// writing to production — see that file's header.
+for (const file of [".env.supabase.local", ".env.local", ".env"]) {
   try {
     for (const line of readFileSync(file, "utf8").split("\n")) {
       const m = line.match(/^([A-Z_0-9]+)=["']?([^"'\n]*)["']?$/);
