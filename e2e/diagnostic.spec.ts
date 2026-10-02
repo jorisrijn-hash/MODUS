@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+import { holdToSubmit } from "./holdToSubmit";
 
 const TEST_EMAIL = "ada@playwright-qa.dev";
 const OPTIONAL_FIELD_TEST_EMAIL = "grace@playwright-qa.dev";
@@ -71,15 +72,7 @@ test("full diagnostic happy path: intro -> review -> submit -> estimate", async 
 
   // Hold-to-confirm: press and hold for >1.1s rather than a simple click
   const submitBtn = page.getByRole("button", { name: /Hold to Submit/i });
-  await expect(submitBtn).toBeVisible();
-  const box = await submitBtn.boundingBox();
-  expect(box).not.toBeNull();
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(1800);
-    await page.mouse.up();
-  }
+  await holdToSubmit(page, submitBtn);
 
   await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
   expect(errors, `console errors during diagnostic flow:\n${errors.join("\n")}`).toEqual([]);
@@ -125,13 +118,7 @@ test("the 'what goes wrong' free-text field is optional: submission succeeds whe
   await expect(page.getByText(/review/i).first()).toBeVisible({ timeout: 5000 });
 
   const submitBtn = page.getByRole("button", { name: /Hold to Submit/i });
-  const box = await submitBtn.boundingBox();
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(1800);
-    await page.mouse.up();
-  }
+  await holdToSubmit(page, submitBtn);
 
   await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
 });

@@ -111,11 +111,19 @@ describe("a mail failure never loses the record", () => {
     await enqueueSubmissionNotification(notification);
     sendMail.mockRejectedValue(new Error("still down"));
 
+    // Clearing the backoff through a function call, rather than inline in
+    // the loop, keeps TypeScript from narrowing `nextAttemptAt` to `null`
+    // for the rest of the body and making the read below unreachable.
+    const makeDueAgain = () => {
+      rows[0].nextAttemptAt = null;
+    };
+
     const delays: number[] = [];
     for (let i = 0; i < 5; i++) {
-      rows[0].nextAttemptAt = null; // make it due again
+      makeDueAgain();
       await dispatchPending();
-      if (rows[0].nextAttemptAt) delays.push(rows[0].nextAttemptAt.getTime() - Date.now());
+      const next = rows[0].nextAttemptAt;
+      if (next) delays.push(next.getTime() - Date.now());
     }
 
     expect(rows[0].attempts).toBe(5);

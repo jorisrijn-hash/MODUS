@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+import { holdToSubmit } from "./holdToSubmit";
 
 /**
  * Checkpoint 5 — Diagnostic presentation/interaction redesign. These tests
@@ -117,15 +118,7 @@ test("a failed submission shows a calm retry state, preserves answers, and a ret
   await expect(page.getByText(/review/i).first()).toBeVisible({ timeout: 5000 });
 
   const submitBtn = page.getByRole("button", { name: /Hold to Submit/i });
-  await expect(submitBtn).toBeVisible();
-  const box = await submitBtn.boundingBox();
-  expect(box).not.toBeNull();
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(1800);
-    await page.mouse.up();
-  }
+  await holdToSubmit(page, submitBtn);
 
   await expect(page.getByText("That didn't go through.")).toBeVisible({ timeout: 10000 });
 
@@ -136,14 +129,7 @@ test("a failed submission shows a calm retry state, preserves answers, and a ret
   // Retry — the interceptor now lets the real request through, so this
   // real submission should succeed.
   const retryBtn = page.getByRole("button", { name: /Hold to Submit/i });
-  await expect(retryBtn).toBeVisible();
-  const retryBox = await retryBtn.boundingBox();
-  if (retryBox) {
-    await page.mouse.move(retryBox.x + retryBox.width / 2, retryBox.y + retryBox.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(1800);
-    await page.mouse.up();
-  }
+  await holdToSubmit(page, retryBtn);
   await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
 });
 

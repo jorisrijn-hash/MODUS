@@ -87,7 +87,7 @@ Configuration is not evidence of working behaviour.
 
   Projected labels use the real step names and work, but are only visible
   on the stages that are currently disabled.
-- **The estimate-screen transition is flaky under load.** The long-standing pre-existing failure hits the same point, and it is the blocker on re-enabling the graphic's later stages. Playwright runs serially because of it. Under active investigation; see §7.
+- ~~**The estimate-screen transition is flaky under load.**~~ **Resolved** — it was a stale-coordinate race in the test harness, not a product defect. Diagnosed, measured and fixed; see §8. `workers: 1` stays, for the separate WebGL-contention reason.
 - **Auth screen visual parity unverified** against the MODUS reference.
 
 ---
@@ -165,3 +165,79 @@ a backlog of real leads.
 `skipped` means "pending and not attempted, because no mail provider is
 configured" — the worker reporting the backlog rather than pretending to
 deliver.
+
+## 8. The estimate-screen flake — found and fixed
+
+**Resolved.** It was a defect in the test harness, not in the product.
+
+### What it was
+
+Five call sites hand-rolled the hold-to-confirm gesture: read
+`boundingBox()`, then `mouse.move` to the measured centre, `mouse.down`,
+wait, `mouse.up`. The review screen animates in, so those coordinates
+were stale by the time the press landed.
+
+Traced against the running app, from the instant `toBeVisible()` resolves
+on the review screen:
+
+```
+t=   0ms  scrollY=122  box.y=619
+t= 300ms  scrollY=123  box.y=619
+t= 400ms  scrollY=123  box.y=615
+t= 500ms  scrollY=123  box.y=606
+t= 600ms  scrollY=123  box.y=603   <- settles
+```
+
+`scrollY` is flat across the whole trace, so this is the entrance
+animation, not scrolling. The button is 53.5px tall and drifts 16px
+upward. A press aimed at the t=0 centre (645) against the settled box
+(603–656.5) has about 11px of slack: usually lands, occasionally not.
+Under CPU contention — the suite already runs `workers: 1` because these
+pages hold WebGL contexts — not.
+
+A missed press landed on the page behind the button. Nothing threw. No
+hold began, no submission was sent, and the test waited out its 15s
+timeout for an estimate screen that could never arrive. Three of the five
+sites also wrapped the press in `if (box)`, so a null box skipped the
+gesture silently and produced that same timeout. **That silent skip is
+why this always presented as "ESTIMATE not visible" and never as
+anything to do with the button** — which is what kept it unexplained
+across several checkpoints.
+
+### The fix
+
+`e2e/holdToSubmit.ts`, one shared helper, replacing all five copies. It
+uses `locator.hover()`, whose actionability check waits for the element
+to be visible, enabled, receiving events, and **stable** (unchanged
+bounding box across two consecutive animation frames) before positioning
+the pointer. The race is removed rather than the margin widened; there is
+no coordinate left for the animation to invalidate.
+
+Two earlier attempts are recorded because they were wrong and the reason
+is useful: `scrollIntoViewIfNeeded` before measuring (the probe showed
+the button was already inside the viewport, so this fixed nothing), and
+`after()` being the cause (disabling it made things worse — 2 failures
+vs 1).
+
+### Evidence
+
+- `--repeat-each=3` across all three submit specs: **30/30 passed.**
+- Full suite: **46 passed, 1 skipped** (the skip needs
+  `E2E_ADMIN_PASSWORD`). Previously 45 passed.
+- `npx tsc --noEmit`: clean.
+- `npx vitest run`: 50 passed.
+
+Three clean repeats is good evidence, not proof, for a defect that was
+intermittent. The mechanism is now understood and measured, which the
+repeat count alone would not give.
+
+### What this unblocks
+
+Re-enabling the diagnostic graphic's later stages (topic layers, review
+stack, mark closure) was blocked on this. The flake is no longer a reason
+to keep them disabled — but they are still **unmounted and unfinished**,
+and §3's entry stands: their passing unit tests cover the state mapping
+only. Re-enabling them is its own task, with its own verification.
+
+`workers: 1` stays. It was set for GPU contention between concurrent
+WebGL contexts, which is a separate and still-real constraint.

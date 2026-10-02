@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+import { holdToSubmit } from "./holdToSubmit";
 
 // Unique per test (not a shared constant): /api/diagnostic rejects a second
 // submission from the same email within 60s as a likely duplicate, which
@@ -65,14 +66,7 @@ async function completeDiagnostic(page: Page, email: string) {
   await expect(page.getByText(/review/i).first()).toBeVisible({ timeout: 5000 });
 
   const submitBtn = page.getByRole("button", { name: /Hold to Submit/i });
-  await expect(submitBtn).toBeVisible();
-  const box = await submitBtn.boundingBox();
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(1800);
-    await page.mouse.up();
-  }
+  await holdToSubmit(page, submitBtn);
 
   await expect(page.getByText(/ESTIMATE|ENGAGEMENT/i).first()).toBeVisible({ timeout: 15000 });
   // The context reference is saved as soon as the API responds, independent
