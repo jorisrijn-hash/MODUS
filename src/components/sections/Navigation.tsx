@@ -10,7 +10,7 @@ import { Logo, LogoTile } from "@/components/ui/Logo";
 import { LogoLockup } from "@/components/ui/LogoLockup";
 import { NavUtilityMenu } from "@/components/ui/NavUtilityMenu";
 import { AnimatedChars } from "@/components/ui/AnimatedChars";
-import { ClientUserButton } from "@/components/client/ClientUserButton";
+import { AuthControls } from "@/components/auth/AuthControls";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
 import { MarketingMobileNav } from "@/components/sections/MarketingMobileNav";
 import { useDict } from "@/lib/i18n/context";
@@ -137,7 +137,10 @@ export function Navigation() {
             className="flex items-center gap-2 rounded-full border border-line/70 bg-surface/80 py-1.5 pl-3 pr-1.5 backdrop-blur-sm lg:gap-3"
           >
             <NavUtilityMenu className="hidden lg:block" />
-            <ClientUserButton className="hidden lg:flex" />
+            {/* Clerk owns identity. The old mock ClientUserButton is
+                replaced here rather than shown alongside, so there is one
+                account control and one identity. */}
+            <AuthControls className="hidden lg:flex" />
 
             <DiagnosticCTA variant="nav" source="nav" magnetic className="hidden sm:inline-flex" />
 

@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
@@ -136,32 +137,34 @@ export default async function RootLayout({
       className={`${serif.variable} ${sans.variable} ${mono.variable}`}
     >
       <body>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        <ThemeProvider initialTheme={initialTheme}>
-          <LocaleProvider initialLocale={initialLocale}>
-            <OverlayProvider>
-              <MotionProvider>
-                {children}
-                {/* Legitimately global, not marketing-only: cookies this
-                    consent decision governs (the modus_theme/modus_locale
-                    preference cookies, and any future analytics/marketing
-                    cookie) are set site-wide, including on /app — a
-                    visitor of the client dashboard is still a visitor
-                    whose consent matters, unlike /private (internal-only,
-                    no external visitor ever reaches it), which this
-                    component already excludes via its own pathname check.
-                    Kept inside MotionProvider like before this checkpoint
-                    so its own motion/react usage is unaffected. */}
-                <ConsentBanner />
-              </MotionProvider>
-              <SystemNotificationHost />
-            </OverlayProvider>
-          </LocaleProvider>
-        </ThemeProvider>
-        <div className="grain-overlay" aria-hidden />
+        <ClerkProvider>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
+          <ThemeProvider initialTheme={initialTheme}>
+            <LocaleProvider initialLocale={initialLocale}>
+              <OverlayProvider>
+                <MotionProvider>
+                  {children}
+                  {/* Legitimately global, not marketing-only: cookies this
+          consent decision governs (the modus_theme/modus_locale
+          preference cookies, and any future analytics/marketing
+          cookie) are set site-wide, including on /app — a
+          visitor of the client dashboard is still a visitor
+          whose consent matters, unlike /private (internal-only,
+          no external visitor ever reaches it), which this
+          component already excludes via its own pathname check.
+          Kept inside MotionProvider like before this checkpoint
+          so its own motion/react usage is unaffected. */}
+                  <ConsentBanner />
+                </MotionProvider>
+                <SystemNotificationHost />
+              </OverlayProvider>
+            </LocaleProvider>
+          </ThemeProvider>
+          <div className="grain-overlay" aria-hidden />
+        </ClerkProvider>
       </body>
     </html>
   );
