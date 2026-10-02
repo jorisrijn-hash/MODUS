@@ -158,9 +158,14 @@ test("a failed submission shows a calm retry state, preserves answers, and a ret
  * What changed is only which component provides that scene — the hero
  * point cloud rather than the fluid field.
  */
-test("diagnostic route mounts no decorative WebGL; the homepage mounts the hero scene", async ({
+test("diagnostic route mounts no decorative WebGL below 2xl; the homepage mounts the hero scene", async ({
   page,
 }) => {
+  // The diagnostic now has its own sphere -> layers -> stack scene, but
+  // only at >=1536px where there is a genuine dedicated region beside the
+  // question column. Below that the focused form stays free of WebGL,
+  // which is the property this test originally protected and still does.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/diagnostic");
   await page.waitForLoadState("networkidle");
   await expect(page.locator("canvas")).toHaveCount(0);

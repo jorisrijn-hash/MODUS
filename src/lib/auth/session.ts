@@ -56,7 +56,25 @@ export async function getSession() {
   return getIronSession<SessionData>(cookieStore, sessionOptions());
 }
 
+/**
+ * Is a usable session secret present?
+ *
+ * Read paths use this to answer "is anyone signed in" without throwing.
+ * Write paths (minting a session at login) deliberately still throw via
+ * `secret()`, so a server with a missing or weak secret can never issue
+ * one — it simply cannot authenticate anybody.
+ */
+function sessionSecretAvailable(): boolean {
+  const s = process.env.SESSION_SECRET;
+  return Boolean(s && s.length >= 32);
+}
+
 export async function isAuthenticated(): Promise<boolean> {
+  // Fails CLOSED and QUIETLY. Without a secret nobody can be signed in, so
+  // the honest answer is "no" — not an unhandled 500. Protected pages then
+  // redirect to login like any signed-out visitor, instead of crashing and
+  // leaking a stack trace. No access is granted by this path.
+  if (!sessionSecretAvailable()) return false;
   const session = await getSession();
   if (!session.username || !session.loggedInAt) return false;
   const ageMs = Date.now() - session.loggedInAt;

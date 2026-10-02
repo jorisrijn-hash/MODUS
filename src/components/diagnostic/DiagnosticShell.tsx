@@ -17,6 +17,8 @@ import { ResultView } from "@/components/diagnostic/ResultView";
 import { DiagnosticRecoveryPrompt } from "@/components/diagnostic/DiagnosticRecoveryPrompt";
 import { ProfileReadyScreen } from "@/components/diagnostic/ProfileReadyScreen";
 import { useDict } from "@/lib/i18n/context";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { DiagnosticScene } from "@/components/diagnostic/DiagnosticScene";
 import { StepBusiness } from "@/components/diagnostic/StepBusiness";
 import { StepOperations } from "@/components/diagnostic/StepOperations";
 import { StepSystems } from "@/components/diagnostic/StepSystems";
@@ -88,6 +90,15 @@ function initialScreen(hasDraft: boolean): Screen {
 
 export function DiagnosticShell() {
   const dict = useDict();
+  // Gated on the MOUNT, not on a CSS class. The brief asks for a generous
+  // dedicated region beside the question column, and below 1536px there is
+  // not one once the 640-720px form and the profile panel are placed.
+  //
+  // A `hidden 2xl:block` wrapper was tried first and is NOT equivalent: the
+  // component still mounted, still created a WebGL context and still held
+  // GPU memory on every narrower screen — invisible, but paid for. Caught
+  // by the test asserting the diagnostic carries no canvas at 1280px.
+  const wideEnoughForScene = useMediaQuery("(min-width: 1536px)");
   const STEP_LABELS = dict.diagnosticShell.stepLabels;
   const STEP_HEADLINES = dict.diagnosticShell.stepHeadlines;
   // Section 13 — a purely visual, non-authoritative echo of the homepage
@@ -267,7 +278,25 @@ export function DiagnosticShell() {
   // motion.div) is both simpler and, verified via Playwright, reliable
   // where the AnimatePresence version was not.
   return (
-    <div className="min-h-[100svh] pt-20">
+    <div className="relative min-h-[100svh] pt-20">
+      {/*
+       * The diagnostic's visual story, driven by the REAL screen and step
+       * — not a parallel decorative counter. It holds the review
+       * structure while submitting and can only reach its closing
+       * composition once persistence is acknowledged (`result`).
+       *
+       * Decorative and `pointer-events-none`, placed behind the form so
+       * it can never intercept input or cover a question. The accessible
+       * description of each stage is the form's own heading and progress.
+       */}
+      {wideEnoughForScene && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-0 top-28 z-0 h-[min(58vh,480px)] w-[40%] opacity-[0.5]"
+        >
+          <DiagnosticScene screen={screen} step={step} className="h-full w-full" />
+        </div>
+      )}
       {screen === "intro" && (
         <motion.div
           key="intro"

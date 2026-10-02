@@ -5,6 +5,7 @@
 // render, which 500s every page that mounts them. Caught by /diagnostic
 // returning 500 across the suite.
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { isClerkPubliclyConfigured } from "@/lib/auth/clerkConfig";
 
 /**
  * Sign-in / sign-up / account controls for the marketing navigation.
@@ -14,6 +15,12 @@ import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
  * and signing up grants no client or admin access on its own.
  */
 export function AuthControls({ className = "" }: { className?: string }) {
+  // Clerk's components throw without a publishable key. With none, the
+  // account controls simply are not offered — the rest of the page, and
+  // the guest diagnostic, are unaffected. Nothing is unlocked by this:
+  // the server fails closed independently.
+  if (!isClerkPubliclyConfigured()) return null;
+
   return (
     <span className={`flex items-center gap-2 ${className}`}>
       <Show when="signed-out">

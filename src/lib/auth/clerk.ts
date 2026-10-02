@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { AuthorizationError, isAdmin, type Identity } from "./authorize";
+import { isClerkConfigured } from "./clerkConfig";
 
 /**
  * Bridges the verified Clerk session into the application's own
@@ -12,6 +13,11 @@ import { AuthorizationError, isAdmin, type Identity } from "./authorize";
 
 /** The verified subject, or null. Never trusts a client-supplied id. */
 export async function currentIdentity(): Promise<Identity> {
+  // Unconfigured means "nobody is signed in", not "skip the check".
+  // Calling auth() without keys throws; returning null here makes every
+  // identity-dependent surface behave exactly as it does for a signed-out
+  // visitor, which is the safe direction.
+  if (!isClerkConfigured()) return null;
   // Next 15+: auth() is async.
   const { userId } = await auth();
   return userId ? { userId } : null;
@@ -55,6 +61,11 @@ export const ADMIN_MFA_REQUIRED = process.env.ADMIN_MFA_REQUIRED === "true";
  * first signup, or anything the client can supply.
  */
 export async function requireAdminSession(): Promise<{ userId: string }> {
+  // Fails CLOSED when the provider is missing. An unconfigured deployment
+  // must never be a way past the admin gate — it denies everyone instead.
+  if (!isClerkConfigured()) {
+    throw new AuthorizationError("Authentication is not configured", 401);
+  }
   const { userId, sessionClaims } = await auth();
   if (!userId) throw new AuthorizationError("Authentication required", 401);
 

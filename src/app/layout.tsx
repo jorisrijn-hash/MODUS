@@ -1,4 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
+import { isClerkConfigured } from "@/lib/auth/clerkConfig";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
@@ -60,6 +61,11 @@ const mono = Geist_Mono({
 // that does not exist. Now the single canonical origin, shared with the
 // sitemap and robots.txt so the three can never disagree.
 const siteUrl = SITE_ORIGIN;
+
+function MaybeClerkProvider({ children }: { children: React.ReactNode }) {
+  if (!isClerkConfigured()) return <>{children}</>;
+  return <ClerkProvider>{children}</ClerkProvider>;
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getInitialLocale();
@@ -152,7 +158,16 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <ClerkProvider>
+        {/*
+         * ClerkProvider is mounted only when Clerk is configured. It
+         * throws at render without a publishable key, which took every
+         * page down — including ones that never needed an account.
+         *
+         * When it is absent nobody is signed in and nobody can sign in,
+         * so protected routes fail closed while the public site and the
+         * guest diagnostic keep working.
+         */}
+        <MaybeClerkProvider>
           <ThemeProvider initialTheme={initialTheme}>
             <LocaleProvider initialLocale={initialLocale}>
               <OverlayProvider>
@@ -175,7 +190,7 @@ export default async function RootLayout({
             </LocaleProvider>
           </ThemeProvider>
           <div className="grain-overlay" aria-hidden />
-        </ClerkProvider>
+        </MaybeClerkProvider>
       </body>
     </html>
   );
