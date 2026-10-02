@@ -137,11 +137,22 @@ export default async function RootLayout({
       className={`${serif.variable} ${sans.variable} ${mono.variable}`}
     >
       <body>
+        {/*
+         * Deliberately OUTSIDE <ClerkProvider>, as a direct child of
+         * <body>.
+         *
+         * `clerk init` moved this inside it. ClerkProvider is a client
+         * component, and React does not execute a <script> encountered
+         * while rendering on the client — it warns instead:
+         * "Encountered a script tag while rendering React component."
+         * Keeping it in the Server Component's own output means it ships
+         * in the SSR HTML, where crawlers actually read it.
+         */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <ClerkProvider>
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-          />
           <ThemeProvider initialTheme={initialTheme}>
             <LocaleProvider initialLocale={initialLocale}>
               <OverlayProvider>
