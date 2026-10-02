@@ -63,7 +63,8 @@ Configuration is not evidence of working behaviour.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
 - **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
-- **Diagnostic sphere→stack graphic: first pass shipped, art direction unfinished.** The state machine is complete and tested (entry sphere → topic layers → review stack → mark closure, driven by the real screen/step, success gated on acknowledged persistence). What remains is visual: no projected topic labels yet, and at the entry stage it overlaps the existing profile node-map, which needs a composition decision rather than more tuning. Mounts only at ≥1536px.
+- **Diagnostic graphic: ENTRY SPHERE ONLY is mounted.** The full sequence (entry sphere → topic layers → review stack → mark closure) is implemented and unit-tested, with projected labels from the real step names. But mounting it through the question and submit screens measurably destabilised submission — three specs began failing intermittently at the estimate screen, and bisecting to intro-only restored 45 passing. It is **not** the `after()` dispatch; disabling that made it worse. Re-enabling the later stages requires looking at the submit-transition timing first. Desktop only (≥1024px), gated on the mount so narrow screens create no WebGL context at all.
+- **The estimate-screen transition is flaky under load.** The long-standing pre-existing failure hits the same point. Playwright now runs serially because of it. Worth investigating on its own — it is the one part of the submission flow that is not reliably reproducible.
 - **Auth screen visual parity unverified** against the MODUS reference.
 
 ---
@@ -78,7 +79,7 @@ Configuration is not evidence of working behaviour.
 | `DATABASE_URL`/`DIRECT_URL` in Vercel | Reported added; migrations already applied to Supabase |
 | Guest diagnostic works without an account | Yes, locally (`/diagnostic` 200 signed out) |
 | Admin inbox rejects anonymous access | Yes, locally |
-| Mail worker scheduled in deployment | **Yes** — `/api/cron/notifications`, every 15 min via `vercel.json`. Needs a plan allowing sub-daily crons (Hobby is daily-only) |
+| Mail worker scheduled in deployment | **Yes, Hobby-compatible.** Prompt drain via `after()` on each submission + one daily sweep at 07:00 in `vercel.json`. Worker requires `CRON_SECRET`; rejects everything without it |
 | Production issuer verified end to end | **No** |
 
 ---
