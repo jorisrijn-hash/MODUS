@@ -7,16 +7,25 @@ Last updated: 2 October 2026.
 
 ---
 
-## Deployment readiness: NOT READY TO PUSH
+## Deployment readiness: READY TO PUSH
 
-6 commits unpushed. Pushing now would break the live site.
+8 commits unpushed. The previous blocker is resolved.
 
-**Blocker:** the running app requires Clerk keys at runtime. Verified: with
-no Clerk keys, `/` and `/diagnostic` both return **500** from a production
-server, even though the build exits 0. Production currently serves the
-pre-Clerk build and is healthy.
+**Previously:** a production server with no Clerk keys returned 500 on `/`
+and `/diagnostic`. **Now,** measured with no environment at all:
 
-Readiness is assessed in §4 below.
+| Route | Result |
+|---|---|
+| `/`, `/diagnostic`, `/pricing`, `/legal`, `/privacypolicy` | **200** |
+| `/sitemap.xml`, `/robots.txt` | **200** |
+| `/private`, `/private/diagnostics` | **307** to login |
+| `/api/private/diagnostics` | **401** `{"error":"Unauthorized."}` |
+
+So a misconfigured deployment degrades instead of going down, and the
+protected surfaces fail closed rather than opening. Production keys being
+present makes it better, not merely functional.
+
+Readiness detail in §4.
 
 ---
 
@@ -54,7 +63,7 @@ Configuration is not evidence of working behaviour.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
 - **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
-- **Diagnostic sphere→stack graphic is unfinished.** Not blocked by credentials.
+- **Diagnostic sphere→stack graphic: first pass shipped, art direction unfinished.** The state machine is complete and tested (entry sphere → topic layers → review stack → mark closure, driven by the real screen/step, success gated on acknowledged persistence). What remains is visual: no projected topic labels yet, and at the entry stage it overlaps the existing profile node-map, which needs a composition decision rather than more tuning. Mounts only at ≥1536px.
 - **Auth screen visual parity unverified** against the MODUS reference.
 
 ---
@@ -64,12 +73,12 @@ Configuration is not evidence of working behaviour.
 | Item | State |
 |---|---|
 | Build succeeds with no env vars | Yes (exit 0) |
-| Runtime survives missing Clerk keys | **No — 500s.** Production must have Clerk keys before the push |
-| Clerk production keys in Vercel Production | Reported added; not verified by me |
+| Runtime survives missing Clerk keys | **Yes.** Public 200, protected 307/401 |
+| Clerk production keys in Vercel Production | User-reported added, copied from the production instance. Not independently verified |
 | `DATABASE_URL`/`DIRECT_URL` in Vercel | Reported added; migrations already applied to Supabase |
 | Guest diagnostic works without an account | Yes, locally (`/diagnostic` 200 signed out) |
 | Admin inbox rejects anonymous access | Yes, locally |
-| Mail worker scheduled in deployment | **No — not yet scheduled.** Outbox fills; nothing drains it |
+| Mail worker scheduled in deployment | **Yes** — `/api/cron/notifications`, every 15 min via `vercel.json`. Needs a plan allowing sub-daily crons (Hobby is daily-only) |
 | Production issuer verified end to end | **No** |
 
 ---
@@ -81,7 +90,7 @@ Configuration is not evidence of working behaviour.
 3. Find that user in Clerk **Production → Users**, verify the identity, take its `user_…` id.
 4. Grant admin explicitly: `node scripts/grant-admin.mjs user_…` against the production database. Never from an email match or provider.
 5. Test in production: admin reaches the inbox; a second ordinary account and an anonymous request are both rejected on page, API and mutation; revocation takes effect on the next request.
-6. Schedule the outbox worker; agree a test arrangement before sending to `hello@withmodus.co`; confirm **user-reported receipt**, not just provider acceptance.
+6. Agree a test arrangement before sending to `hello@withmodus.co`; confirm **user-reported receipt**, not just provider acceptance.
 7. Finish the sphere→stack graphic and the auth-screen visual comparison.
 
 ---
