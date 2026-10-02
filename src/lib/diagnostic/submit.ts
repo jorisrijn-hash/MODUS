@@ -12,6 +12,27 @@ function getUtmAndSource() {
   };
 }
 
+/**
+ * One idempotency key per submission ATTEMPT-SET, held for the life of the
+ * page.
+ *
+ * It is generated once and reused across retries on purpose: that is what
+ * makes a retry after a timed-out response resolve to the original record
+ * instead of creating a second lead. Regenerating it per call would defeat
+ * the whole mechanism.
+ */
+let idempotencyKey: string | null = null;
+
+function submissionKey(): string {
+  if (!idempotencyKey) {
+    idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `k_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+  return idempotencyKey;
+}
+
 export async function submitDiagnostic(
   answers: DiagnosticAnswers,
   preliminaryProfile: ProfileIndicator[],
@@ -20,7 +41,7 @@ export async function submitDiagnostic(
   try {
     const res = await fetch("/api/diagnostic", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": submissionKey() },
       body: JSON.stringify({
         ...answers,
         preliminaryProfile,

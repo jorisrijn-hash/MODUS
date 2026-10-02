@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { enqueueSubmissionNotification } from "@/lib/notifications/outbox";
+import { SITE_ORIGIN } from "@/lib/legal/site";
 import {
   companyNameSchema,
   emailSchema,
@@ -97,6 +99,29 @@ export async function POST(request: NextRequest) {
   // honeypot tripped — pretend success, don't persist
   if (data.website2) {
     return NextResponse.json({ ok: true, id: "ok" });
+  }
+
+  // Idempotency.
+  //
+  // The browser sends a key it generates once per submission attempt. A
+  // double-click, or a retry after a response timed out on the way back,
+  // resolves to the SAME record instead of creating a second lead. The
+  // original contextToken is returned, so the visitor's stored profile
+  // reference stays valid across the retry.
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (idempotencyKey) {
+    const existing = await prisma.diagnostic.findUnique({
+      where: { idempotencyKey },
+      select: { id: true, contextToken: true },
+    });
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        id: existing.id,
+        contextToken: existing.contextToken,
+        deduplicated: true,
+      });
+    }
   }
 
   if (data.phone) {
@@ -199,10 +224,27 @@ export async function POST(request: NextRequest) {
       utmMedium: data.utmMedium || null,
       utmCampaign: data.utmCampaign || null,
 
+      idempotencyKey: idempotencyKey ?? null,
+
       activityEvents: {
         create: { label: "Diagnostic submitted" },
       },
     },
+  });
+
+  // Notification is enqueued only now that the submission is committed,
+  // and it deliberately cannot fail this request: a mail problem must
+  // never tell the visitor their submission failed when it is safely
+  // saved, nor push them into resubmitting. Delivery is retried from the
+  // outbox separately.
+  await enqueueSubmissionNotification({
+    diagnosticId: diagnostic.id,
+    companyName: diagnostic.companyName,
+    contactName: `${diagnostic.firstName} ${diagnostic.lastName}`.trim(),
+    contactEmail: diagnostic.email,
+    formType: "diagnostic submission",
+    submittedAt: diagnostic.createdAt,
+    adminUrl: `${SITE_ORIGIN}/private/diagnostics/${diagnostic.id}`,
   });
 
   return NextResponse.json({ ok: true, id: diagnostic.id, contextToken: diagnostic.contextToken });

@@ -2,19 +2,49 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Local dev uses SQLite (zero-config, file-based, real embedded database —
-// not a JSON file). Swap to Postgres for production: change provider to
-// "postgresql" and point DATABASE_URL at a hosted instance (Railway, Neon,
-// Supabase, Vercel Postgres all work), then `npx prisma migrate deploy`.
+// Postgres, because production runs on Supabase.
+//
+// SQLite could never have worked in production: Vercel's filesystem is
+// read-only outside /tmp and ephemeral per invocation, and prisma/dev.db
+// is gitignored, so a deployed build had no database file at all and every
+// diagnostic submission would have failed at runtime.
+//
+// DATABASE_URL is the pooled connection (PgBouncer, port 6543) that the
+// application uses at runtime; DIRECT_URL is the direct connection
+// (port 5432) that `prisma migrate` needs, because migrations cannot run
+// through a transaction pooler. Both are set per environment and never
+// committed.
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Diagnostic {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // --- Ownership and lifecycle -----------------------------------------
+  // Clerk subject id. A STRING, not a uuid: Clerk ids look like
+  // "user_2abc..." and do not exist in Supabase's auth.users, so forcing
+  // them into a uuid column would fail outright. Null means a guest
+  // submission, which stays supported.
+  ownerId String?
+
+  // Which version of the question set produced these answers, so a later
+  // schema change cannot silently reinterpret an old submission.
+  schemaVersion String @default("v1")
+
+  // DRAFT rows are in-progress and owner-visible; SUBMITTED rows are
+  // final. Separate from `status`, which is the ADMIN review pipeline and
+  // must never be writable by the person who submitted.
+  lifecycle String @default("SUBMITTED")
+
+  // Supplied by the client once per submission attempt. Unique, so a
+  // double-click or a retry after a timed-out response resolves to the
+  // same row instead of creating a second lead.
+  idempotencyKey String? @unique
 
   status          String @default("NEW") // NEW, REVIEWING, REVIEWED, CONTACTED, QUALIFIED, CONVERTED, CLOSED
   statusUpdatedAt DateTime @default(now())
@@ -124,6 +154,116 @@ model Diagnostic {
   @@index([status])
   @@index([createdAt])
   @@index([email])
+  @@index([ownerId])
+  @@index([lifecycle])
+}
+
+/// Application profile, keyed by Clerk subject id.
+///
+/// Clerk owns identity; this holds only what the application itself needs.
+/// Created on demand at first authenticated use rather than depending on a
+/// webhook having already arrived — a delayed webhook must not make a
+/// first sign-in fail.
+model Profile {
+  id        String   @id // Clerk user id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email       String?
+  displayName String?
+  companyName String?
+
+  @@index([email])
+}
+
+/// Server-controlled MODUS administrator membership.
+///
+/// Deliberately its own table, not a field on Profile and not a Clerk
+/// metadata claim: metadata is editable from places a browser can reach,
+/// and a long-lived token claim cannot be revoked immediately. Every
+/// protected request re-checks this table, so removing a row takes effect
+/// on the very next action.
+///
+/// Authentication is never an admin check. Signup grants nothing here.
+model AdminMember {
+  id        String   @id @default(cuid())
+  userId    String   @unique // Clerk user id
+  createdAt DateTime @default(now())
+  createdBy String? // who granted it, for audit
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+/// Explicit client/workspace access. Separate from AdminMember on purpose:
+/// an organisation admin is not a platform-wide MODUS administrator, and a
+/// free account holder is neither.
+model ClientEntitlement {
+  id        String   @id @default(cuid())
+  userId    String // Clerk user id
+  scope     String // e.g. workspace or account identifier
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  @@unique([userId, scope])
+  @@index([userId])
+}
+
+/// Durable outbox for internal notification email.
+///
+/// A row is written only AFTER the submission is committed, so a mail
+/// failure can never make a saved submission look like it failed, and can
+/// never lose the lead. `dedupeKey` is unique, so retries and duplicate
+/// events resolve to one delivery.
+model NotificationOutbox {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  kind       String // e.g. "diagnostic.submitted"
+  dedupeKey  String @unique
+  recipient  String
+  subject    String
+  body       String
+
+  status     String @default("PENDING") // PENDING, SENT, FAILED
+  attempts   Int    @default(0)
+  lastError  String?
+  sentAt     DateTime?
+  nextAttemptAt DateTime?
+
+  @@index([status, nextAttemptAt])
+}
+
+/// Single-use, short-lived proof that the bearer may claim a guest
+/// diagnostic. Typing the same email address is NOT proof of ownership.
+model GuestClaimToken {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  /// SHA-256 of the token. The token itself is never stored, so a database
+  /// read cannot be replayed as a claim.
+  tokenHash    String   @unique
+  diagnosticId String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  consumedBy   String? // Clerk user id
+
+  @@index([diagnosticId])
+  @@index([expiresAt])
+}
+
+/// Append-only audit of consequential administrative actions.
+/// Deliberately records WHAT changed, never the full answers or secrets.
+model AuditEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  actorId   String? // Clerk user id
+  action    String
+  subjectId String?
+  detail    String?
+
+  @@index([createdAt])
+  @@index([actorId])
 }
 
 model Note {

@@ -353,3 +353,54 @@ when the stack's lazy threshold is retuned.
   conditions it was measured under.
 - Secondary polish that is unfinished (hero packets and arrival rings, the
   header progress ring) is named as unfinished, not quietly omitted.
+
+---
+
+## Backend persistence and authorization — PARTIALLY VERIFIED, NOT COMPLETE
+
+**The backend is not marked complete.** Code, migrations and tests are
+finished; the four checks that need live providers have not been run. They
+are listed as unchecked in `MODUS_PROVIDER_SETUP.md` §7.
+
+### Verified against a real database
+
+PostgreSQL 17 running locally, so these are measured, not asserted.
+
+| Check | Result |
+|---|---|
+| SQLite → Postgres port | Whole app runs on Postgres. Playwright **42 passed / 1 failed / 1 skipped** — identical to the SQLite baseline, same pre-existing failure. |
+| Existing records preserved | All **4** original diagnostics present after migration; `comm` against the export shows **0 missing**. 96 login attempts carried over. |
+| Import idempotency | Re-running the importer inserted **0** diagnostics. |
+| Orphaned rows | **347 of 356** activity events and **2 of 3** notes referenced deleted diagnostics — SQLite does not enforce foreign keys by default. Partitioned out, written to `prisma/export/orphaned-rows.json`, reported rather than silently dropped. Postgres enforces the constraint from now on. |
+| Idempotent submission | Same `Idempotency-Key` twice → one row, same `id`, same `contextToken`, `deduplicated: true`. Covered by `e2e/persistence.spec.ts`. |
+| Notification enqueued | One outbox row per submission, recipient `hello@withmodus.co`, `PENDING`. Enqueued only after commit; a mail failure cannot fail the request or lose the lead. |
+| Admin grant/revoke | Non-Clerk input rejected; grant creates active membership; revoke deactivates it. Audited. |
+
+### RLS, verified by role impersonation
+
+Executed as the real `authenticated`/`anon` roles with `request.jwt.claims`
+set, against the real tables:
+
+| Attempt | Result |
+|---|---|
+| Owner reads own diagnostics | sees **1** (own only) |
+| Other signed-in user reads them | sees **0** |
+| Anonymous reads diagnostics | `permission denied` |
+| Any user reads `AdminMember` | `permission denied` |
+| Admin reads all | sees **11** |
+| User plants a row owned by someone else | `new row violates row-level security policy` |
+| Owner edits own **submitted** answers | `UPDATE 0` |
+| Owner writes `status` (review pipeline) | `permission denied` — column not granted |
+| User inserts themselves into `AdminMember` | `permission denied` |
+
+Guest rows (`ownerId IS NULL`) match no policy, so they are invisible to
+every signed-in user and reachable only through the server after a
+verified claim — never by typing the same email address.
+
+### Not verified, and not claimed
+
+- Supabase itself (policies verified on local Postgres, not yet on Supabase).
+- Clerk sign-in/up/verification/recovery/sign-out — no keys.
+- Admin MFA enforcement on a direct request — no Clerk tenant.
+- Actual delivery to `hello@withmodus.co` — no verified sender exists; a
+  forwarding alias cannot send.
