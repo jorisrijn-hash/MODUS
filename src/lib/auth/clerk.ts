@@ -18,17 +18,41 @@ export async function currentIdentity(): Promise<Identity> {
 }
 
 /**
+ * Whether a second factor is required for administrator access.
+ *
+ * INTENTIONALLY DEFERRED (user decision, 2 October 2026). Clerk's MFA is a
+ * paid feature on this plan and the user chose not to enable it for this
+ * phase.
+ *
+ * This is a RECORDED SECURITY LIMITATION, not a finished feature and not a
+ * failed setup. The enforcement code below is retained and exercised by
+ * tests so turning it on later is a one-line change, but with this flag
+ * false the application does NOT enforce MFA. Any Google two-step
+ * verification on the underlying Google account protects the Google login
+ * only — it is not application-enforced MFA and must never be reported as
+ * such.
+ *
+ * Everything else about admin access is unchanged and still strict:
+ * membership is a server-controlled row, re-read on every protected
+ * request, and revocation takes effect on the very next action.
+ */
+export const ADMIN_MFA_REQUIRED = process.env.ADMIN_MFA_REQUIRED === "true";
+
+/**
  * Admin gate for pages, route handlers and server actions.
  *
- * Three independent conditions, all re-checked per request:
+ * Conditions, all re-checked per request:
  *   1. a verified Clerk session exists;
  *   2. that subject holds a current, unrevoked AdminMember row;
- *   3. the session was verified with a second factor.
+ *   3. a second factor, ONLY when ADMIN_MFA_REQUIRED is enabled.
  *
- * (3) is enforced HERE, server-side, against the session claims — not by
- * hiding a menu item and not by a client-side check. A direct request to a
- * protected endpoint from a single-factor session is rejected the same as
- * an anonymous one.
+ * (3) is enforced server-side against the session claims when it applies —
+ * not by hiding a menu item — so a direct request from a single-factor
+ * session is rejected exactly like an anonymous one. It is currently off
+ * by decision; see ADMIN_MFA_REQUIRED above.
+ *
+ * Never granted from an email address, an identity provider, being the
+ * first signup, or anything the client can supply.
  */
 export async function requireAdminSession(): Promise<{ userId: string }> {
   const { userId, sessionClaims } = await auth();
@@ -40,7 +64,7 @@ export async function requireAdminSession(): Promise<{ userId: string }> {
     throw new AuthorizationError("Not authorized", 403);
   }
 
-  if (!hasSecondFactor(sessionClaims)) {
+  if (ADMIN_MFA_REQUIRED && !hasSecondFactor(sessionClaims)) {
     throw new AuthorizationError(
       "Multi-factor authentication is required for administrator access.",
       403
