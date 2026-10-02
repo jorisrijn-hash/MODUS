@@ -63,8 +63,31 @@ Configuration is not evidence of working behaviour.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
 - **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
-- **Diagnostic graphic: ENTRY SPHERE ONLY is mounted.** The full sequence (entry sphere → topic layers → review stack → mark closure) is implemented and unit-tested, with projected labels from the real step names. But mounting it through the question and submit screens measurably destabilised submission — three specs began failing intermittently at the estimate screen, and bisecting to intro-only restored 45 passing. It is **not** the `after()` dispatch; disabling that made it worse. Re-enabling the later stages requires looking at the submit-transition timing first. Desktop only (≥1024px), gated on the mount so narrow screens create no WebGL context at all.
-- **The estimate-screen transition is flaky under load.** The long-standing pre-existing failure hits the same point. Playwright now runs serially because of it. Worth investigating on its own — it is the one part of the submission flow that is not reliably reproducible.
+- **Diagnostic graphic — UNFINISHED. Only the entry sphere is active.**
+
+  | Stage | State |
+  |---|---|
+  | Entry sphere | **Active** on `/diagnostic`, desktop ≥1024px |
+  | Topic layers (question stages) | **Disabled** — code written, not mounted |
+  | Review stack | **Disabled** — code written, not mounted |
+  | Mark closure (success) | **Disabled** — code written, not mounted |
+
+  The three disabled stages have passing unit tests, and that is **not**
+  evidence they work. The tests cover the state mapping only — which stage
+  a screen maps to, and that success cannot be reached before persistence.
+  Nothing has rendered them, nobody has looked at them, and their
+  composition against the form and the profile panel is unresolved.
+  Treat them as unfinished.
+
+  They are unmounted because running the scene through the question and
+  submit screens measurably destabilised submission: three specs began
+  failing intermittently at the estimate screen, and restricting the mount
+  to `intro` restored 45 passing. Bisected — it is **not** the `after()`
+  dispatch; disabling that made it worse.
+
+  Projected labels use the real step names and work, but are only visible
+  on the stages that are currently disabled.
+- **The estimate-screen transition is flaky under load.** The long-standing pre-existing failure hits the same point, and it is the blocker on re-enabling the graphic's later stages. Playwright runs serially because of it. Under active investigation; see §7.
 - **Auth screen visual parity unverified** against the MODUS reference.
 
 ---
@@ -102,3 +125,43 @@ Tracked in `MODUS_POLICY_RESOLUTION.md` and unchanged: retention periods,
 international transfers, the authentication provider name in the published
 policy, account deletion, and the final provider/region list. None may be
 guessed; all are release blockers for the final policy text, not for code.
+
+
+---
+
+## 7. Notification worker — scope and guarantees
+
+**`CRON_SECRET` gates the scheduled sweep only.** The submission-triggered
+drain calls `dispatchPending()` as a direct function import inside
+`after()` — it makes no HTTP request, so it never passes through the
+authenticated endpoint. A deployment with no `CRON_SECRET` still delivers
+promptly on submission; it loses only the daily retry sweep, and the
+endpoint rejects every caller rather than becoming public.
+
+Verified by test (9 cases, `src/lib/notifications/__tests__/outbox.test.ts`):
+
+| Guarantee | Result |
+|---|---|
+| Mail failure keeps the record | Row stays `PENDING`, `attempts` incremented, error recorded, `sentAt` still null |
+| Failure backs off | Each retry schedules strictly later than the last |
+| Permanent failure stops | `FAILED` only after the attempt bound, so a bad address is not retried forever |
+| Enqueue failure never breaks submission | Resolves silently — a committed record is never reported as failed |
+| Repeated event collapses | Three enqueues of the same submission → **one** row |
+| Delivered once | Second sweep sends nothing; `sendMail` called exactly once |
+| Re-enqueue after success | Does not resurrect a sent notification |
+| No provider configured | Reports the backlog, sends nothing, keeps rows `PENDING` |
+| Header injection | CR/LF stripped from the subject |
+
+### What the "skipped" count was
+
+The `{"skipped": 74}` from the worker test is **PENDING rows in the local
+development database** (`modus_dev` @ localhost), accumulated by repeated
+Playwright runs submitting diagnostics. It is not production data and not
+a backlog of real leads.
+
+- Local `modus_dev` outbox: 107 PENDING at last count, all test artefacts.
+- **Supabase outbox: 0 rows.**
+
+`skipped` means "pending and not attempted, because no mail provider is
+configured" — the worker reporting the backlog rather than pretending to
+deliver.
