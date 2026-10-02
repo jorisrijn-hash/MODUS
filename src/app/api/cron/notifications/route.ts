@@ -2,28 +2,52 @@ import { NextResponse, type NextRequest } from "next/server";
 import { dispatchPending } from "@/lib/notifications/outbox";
 
 /**
- * Drains the notification outbox.
+ * Daily retry sweep for the notification outbox.
  *
- * Until this existed nothing drained it: submissions enqueued rows that
- * would have sat PENDING forever, so a lead could be saved and nobody
- * would ever be told.
+ * This is NOT the primary delivery path. Normal delivery happens promptly:
+ * the submission route schedules a drain immediately after the record is
+ * committed. This endpoint catches whatever failed then — a provider
+ * outage, a cold-start timeout — and runs once a day, which is the maximum
+ * frequency Vercel's Hobby plan supports. A quarter-hourly schedule would
+ * have been rejected there.
  *
- * Scheduled by Vercel Cron (see vercel.json). Vercel sends
- * `Authorization: Bearer $CRON_SECRET` when CRON_SECRET is configured.
+ * It is equally callable from any external scheduler that can send the
+ * bearer token, if sub-daily retries are wanted without changing plan.
  *
- * Deliberately never statically rendered or cached: it must execute per
- * invocation, and a cached response would silently stop delivery.
+ * Never statically rendered or cached: it must execute per invocation, and
+ * a cached response would silently stop delivery.
  */
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+/**
+ * A SECRET is required. Nothing else authenticates this endpoint.
+ *
+ * An earlier version fell back to accepting any request carrying an
+ * `x-vercel-cron` header when no secret was set. That is not
+ * authentication — a header is attacker-controlled, so anyone could have
+ * forced mail sending and burned the provider quota.
+ *
+ * With no CRON_SECRET configured this rejects EVERYTHING, including the
+ * platform's own invocation. A deployment that forgets the secret stops
+ * sending; it does not become public.
+ */
 function authorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
-  // With no secret configured, accept only Vercel's own cron invocation.
-  // A public, unauthenticated drain endpoint would let anyone force mail
-  // sending and burn the provider quota.
-  if (!secret) return request.headers.get("x-vercel-cron") !== null;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
+  if (!secret) return false;
+
+  const header = request.headers.get("authorization");
+  if (!header) return false;
+
+  const expected = `Bearer ${secret}`;
+  // Constant-time compare, so response timing cannot be used to recover
+  // the secret character by character.
+  if (header.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= header.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export async function GET(request: NextRequest) {
@@ -33,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await dispatchPending();
-    // Counts only — never the recipients, the subjects or the bodies.
+    // Counts only — never recipients, subjects or bodies.
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error("[cron/notifications] dispatch failed", error);

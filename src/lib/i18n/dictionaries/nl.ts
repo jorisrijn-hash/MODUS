@@ -185,6 +185,7 @@ export const nl: Dictionary = {
       "Wat is nu het belangrijkst?",
       "Waar moet MODUS je profiel naartoe sturen?",
     ],
+    stepTopics: ["Bedrijf", "Klanten", "Systemen", "Frictie", "Prioriteiten", "Contact"],
     profileReady: {
       label: "PROFIEL KLAAR",
       loading: "Je profiel wordt geladen…",

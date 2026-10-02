@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { enqueueSubmissionNotification } from "@/lib/notifications/outbox";
+import { after } from "next/server";
+import { dispatchPending, enqueueSubmissionNotification } from "@/lib/notifications/outbox";
 import { SITE_ORIGIN } from "@/lib/legal/site";
 import {
   companyNameSchema,
@@ -237,6 +238,9 @@ export async function POST(request: NextRequest) {
   // never tell the visitor their submission failed when it is safely
   // saved, nor push them into resubmitting. Delivery is retried from the
   // outbox separately.
+  // Enqueue AFTER the record is committed. A mail problem must never tell
+  // the visitor their submission failed when it is safely saved, nor push
+  // them into resubmitting.
   await enqueueSubmissionNotification({
     diagnosticId: diagnostic.id,
     companyName: diagnostic.companyName,
@@ -245,6 +249,22 @@ export async function POST(request: NextRequest) {
     formType: "diagnostic submission",
     submittedAt: diagnostic.createdAt,
     adminUrl: `${SITE_ORIGIN}/private/diagnostics/${diagnostic.id}`,
+  });
+
+  // Prompt delivery, off the response path.
+  //
+  // `after()` runs once the response has been sent, so the visitor never
+  // waits on the mail provider, but the notification still goes out in
+  // seconds rather than waiting for the daily sweep. If it throws — the
+  // provider is down, the function is killed — the row simply stays
+  // PENDING with its backoff and the sweep retries it. Delivery is never
+  // dependent on this succeeding.
+  after(async () => {
+    try {
+      await dispatchPending(5);
+    } catch (error) {
+      console.error("[diagnostic] prompt notification dispatch failed", error);
+    }
   });
 
   return NextResponse.json({ ok: true, id: diagnostic.id, contextToken: diagnostic.contextToken });

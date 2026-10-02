@@ -59,10 +59,13 @@ const FRAGMENT = /* glsl */ `
 export function DiagnosticScene({
   screen,
   step,
+  labels = [],
   className = "",
 }: {
   screen: string;
   step: number;
+  /** Real diagnostic topic names, one per layer, in step order. */
+  labels?: readonly string[];
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -73,6 +76,7 @@ export function DiagnosticScene({
   // Read inside the frame loop so a stage change never rebuilds the scene
   // or the WebGL context.
   const stageRef = useRef<DiagnosticStage>(stageFor(screen, step));
+  const labelLayerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     stageRef.current = stageFor(screen, step);
@@ -171,6 +175,8 @@ export function DiagnosticScene({
       geo.attributes.position.needsUpdate = true;
       geo.attributes.aEmphasis.needsUpdate = true;
 
+      positionLabels(stage);
+
       // A slow drift only while the information is still unresolved; the
       // composed states are deliberately still.
       if (!reducedMotion) {
@@ -178,6 +184,61 @@ export function DiagnosticScene({
         root.rotation.y += dt * 0.12 * settle;
       }
       renderer.render(scene, camera);
+    }
+
+    // --- projected topic labels ------------------------------------------
+    // HTML, positioned by projecting each layer's real centroid through the
+    // live camera — not texture text, which blurs, and not a fixed offset,
+    // which detaches the moment the scene rotates.
+    const labelEls = Array.from(
+      labelLayerRef.current?.querySelectorAll<HTMLElement>("[data-layer]") ?? []
+    );
+    const centroid = new THREE.Vector3();
+
+    function positionLabels(stage: DiagnosticStage) {
+      if (!labelEls.length) return;
+      // Labels belong to the question stages. At entry nothing has been
+      // answered, so naming topics there would imply progress that has not
+      // happened; the composed states have the form's own headings.
+      const show = stage.kind === "layers";
+      const w = canvas!.clientWidth;
+      const h = canvas!.clientHeight;
+
+      for (const el of labelEls) {
+        const layer = Number(el.dataset.layer);
+        if (!show) {
+          el.style.opacity = "0";
+          continue;
+        }
+        centroid.set(0, 0, 0);
+        let n = 0;
+        for (let i = 0; i < count; i++) {
+          if (cloud.layerOf[i] !== layer) continue;
+          centroid.x += positions[i * 3];
+          centroid.y += positions[i * 3 + 1];
+          centroid.z += positions[i * 3 + 2];
+          n++;
+        }
+        if (!n) continue;
+        centroid.divideScalar(n);
+        root.localToWorld(centroid);
+        centroid.project(camera);
+
+        // Behind the camera or outside the frame: suppress rather than
+        // pin a label to a point that is not really there.
+        if (centroid.z > 1 || Math.abs(centroid.x) > 1 || Math.abs(centroid.y) > 1) {
+          el.style.opacity = "0";
+          continue;
+        }
+        const x = (centroid.x * 0.5 + 0.5) * w;
+        const y = (-centroid.y * 0.5 + 0.5) * h;
+        el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -50%)`;
+        // The active topic is legible; the rest are present but quiet, so
+        // the reader is never asked to parse six labels at once.
+        const active = stage.kind === "layers" && layer === stage.activeLayer;
+        el.style.opacity = active ? "1" : "0.28";
+        el.style.fontWeight = active ? "500" : "400";
+      }
     }
 
     function frame(now: number) {
@@ -206,6 +267,7 @@ export function DiagnosticScene({
       for (let i = 0; i < count; i++) emphasis[i] = emphasisFor(cloud, stageRef.current, i);
       geo.attributes.position.needsUpdate = true;
       geo.attributes.aEmphasis.needsUpdate = true;
+      positionLabels(stageRef.current);
       renderer.render(scene, camera);
     } else {
       const io = new IntersectionObserver(([e]) => {
@@ -231,11 +293,28 @@ export function DiagnosticScene({
       mat.dispose();
       renderer.dispose();
     };
-  }, [reducedMotion, theme]);
+  }, [reducedMotion, theme, labels]);
 
   return (
     <div ref={hostRef} className={`relative ${className}`}>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
+
+      {/*
+       * Decorative duplicates of the form's own headings, so they are
+       * hidden from assistive technology — the question heading and the
+       * progress indicator are the accessible representation.
+       */}
+      <div ref={labelLayerRef} aria-hidden="true" className="pointer-events-none absolute inset-0">
+        {labels.map((label, i) => (
+          <span
+            key={label}
+            data-layer={i}
+            className="absolute left-0 top-0 whitespace-nowrap rounded-full border border-line/60 bg-surface/85 px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink opacity-0 backdrop-blur-[2px] transition-opacity duration-300"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
       {/* Non-WebGL fallback: a static layered mark, so the stage is still
           communicated and the diagnostic stays completely usable. */}
       <div

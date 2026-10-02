@@ -200,6 +200,10 @@ export const en = {
       "What matters most right now?",
       "Where should MODUS send your profile?",
     ],
+    // Short forms of stepHeadlines, for the diagnostic scene's projected
+    // labels. Same six topics, same order — abbreviated because a full
+    // question does not fit on a floating chip.
+    stepTopics: ["Business", "Customers", "Systems", "Friction", "Priorities", "Contact"],
     profileReady: {
       label: "PROFILE READY",
       loading: "Loading your profile…",

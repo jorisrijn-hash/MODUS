@@ -6,6 +6,14 @@ import { defineConfig, devices } from "@playwright/test";
 // so a second server on the same port causes collisions (see
 // BRIEF_CHECKLIST.md history). Start it yourself before running tests.
 export default defineConfig({
+  // Serial. Not the default per-core count.
+  //
+  // The homepage and the diagnostic each hold a WebGL context now, so a
+  // high worker count runs several GPU-backed browsers at once on one
+  // machine and the diagnostic flow intermittently times out. The specs
+  // pass individually; this is contention, not a product defect — but a
+  // suite that fails under its own parallelism is not a useful signal.
+  workers: 1,
   testDir: "./e2e",
   fullyParallel: true,
   retries: 0,

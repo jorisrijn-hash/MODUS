@@ -90,15 +90,16 @@ function initialScreen(hasDraft: boolean): Screen {
 
 export function DiagnosticShell() {
   const dict = useDict();
-  // Gated on the MOUNT, not on a CSS class. The brief asks for a generous
-  // dedicated region beside the question column, and below 1536px there is
-  // not one once the 640-720px form and the profile panel are placed.
+  // Gated on the MOUNT, not on a CSS class.
   //
   // A `hidden 2xl:block` wrapper was tried first and is NOT equivalent: the
   // component still mounted, still created a WebGL context and still held
-  // GPU memory on every narrower screen — invisible, but paid for. Caught
-  // by the test asserting the diagnostic carries no canvas at 1280px.
-  const wideEnoughForScene = useMediaQuery("(min-width: 1536px)");
+  // GPU memory on every narrower screen — invisible, but paid for.
+  //
+  // 1024px is the desktop threshold: the scene is the entry screen's main
+  // visual, so it has to appear at ordinary desktop widths, while phones
+  // and small tablets keep a form with no WebGL at all.
+  const wideEnoughForScene = useMediaQuery("(min-width: 1024px)");
   const STEP_LABELS = dict.diagnosticShell.stepLabels;
   const STEP_HEADLINES = dict.diagnosticShell.stepHeadlines;
   // Section 13 — a purely visual, non-authoritative echo of the homepage
@@ -289,12 +290,47 @@ export function DiagnosticShell() {
        * it can never intercept input or cover a question. The accessible
        * description of each stage is the form's own heading and progress.
        */}
-      {wideEnoughForScene && (
+      {/*
+       * ENTRY ONLY, for now.
+       *
+       * The scene implements the full sequence — entry sphere, separated
+       * topic layers, review stack, mark closure — and that mapping is
+       * unit-tested. But mounting it through the question and submit
+       * screens measurably destabilised the submission flow: its render
+       * loop and WebGL context compete with the submit transition, and
+       * three separate specs began failing intermittently at the estimate
+       * screen. Bisected: restricting the mount to `intro` returned the
+       * suite to 45 passing with only the known pre-existing failure.
+       *
+       * So the focused form is deliberately free of WebGL again, which was
+       * the original principle, and the entry screen gets its sphere.
+       * Re-enabling the later stages needs the submit-transition timing
+       * looked at first — see PROJECT-STATUS.md.
+       */}
+      {wideEnoughForScene && screen === "intro" && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute right-0 top-28 z-0 h-[min(58vh,480px)] w-[40%] opacity-[0.5]"
+          className={`pointer-events-none absolute right-0 z-0 ${
+            screen === "intro"
+              ? // Entry: the sphere is the screen's subject, so it gets the
+                // right half at full strength.
+                "top-24 h-[min(62vh,540px)] w-[46%] opacity-100"
+              : // Answering onward: BELOW the profile panel, which owns the
+                // upper right. Placed behind it first and was almost
+                // entirely occluded — the layers and their labels were
+                // invisible, so the scene was paying for a WebGL context
+                // and showing nothing. This uses the empty region instead,
+                // where the separated layers and the active topic label
+                // are actually legible.
+                "bottom-10 h-[min(34vh,300px)] w-[38%] opacity-[0.75]"
+          }`}
         >
-          <DiagnosticScene screen={screen} step={step} className="h-full w-full" />
+          <DiagnosticScene
+            screen={screen}
+            step={step}
+            labels={dict.diagnosticShell.stepTopics}
+            className="h-full w-full"
+          />
         </div>
       )}
       {screen === "intro" && (
@@ -360,9 +396,14 @@ export function DiagnosticShell() {
               />
             </div>
 
-            <Reveal delay={0.2}>
-              <SystemMap systems={[]} connectionLevel="" />
-            </Reveal>
+            {/*
+             * The empty SystemMap placeholder used to sit here, inside a
+             * Reveal. At entry it drew a node diagram with nothing in it
+             * yet, competing with the new sphere for the same space and
+             * saying less. The sphere now owns the entry screen; SystemMap
+             * is retained on the form screen, where it actually fills in
+             * from the visitor's answers.
+             */}
           </Container>
         </motion.div>
       )}
