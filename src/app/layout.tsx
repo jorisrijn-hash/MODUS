@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { MotionProvider } from "@/components/MotionProvider";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { getInitialLocale } from "@/lib/i18n/server";
@@ -156,6 +157,7 @@ export default async function RootLayout({
             </OverlayProvider>
           </LocaleProvider>
         </ThemeProvider>
+        <Analytics />
         <div className="grain-overlay" aria-hidden />
       </body>
     </html>
