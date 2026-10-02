@@ -90,6 +90,25 @@ deliver.
 
 ---
 
+## 3b. Supabase client keys (browser)
+
+The app uses `@supabase/supabase-js` (2.117.2) so that user-scoped reads go
+through PostgREST and therefore exercise RLS.
+
+| Variable | Supabase dashboard | Scope |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project Settings → Data API → **Project URL** | Public |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Project Settings → API Keys → **Publishable key** (`sb_publishable_…`) | Public |
+
+Older projects label the same thing "anon public" (a `eyJ…` JWT). The code
+accepts `NEXT_PUBLIC_SUPABASE_ANON_KEY` as an alias, so either name works —
+set whichever matches your dashboard.
+
+Both are public by design: they ship to the browser and RLS is what
+protects the data. The **secret / service-role** key is a different key and
+must never be put in a `NEXT_PUBLIC_` variable. This project does not use
+it at all.
+
 ## 4. Site
 
 | Variable | Value |

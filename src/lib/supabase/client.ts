@@ -20,20 +20,40 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * database through Prisma after doing its own explicit authorization.
  */
 
+/**
+ * The browser-safe key, under either name.
+ *
+ * Supabase renamed this: older projects show an "anon public" key (a JWT,
+ * `eyJ...`), current ones show a "Publishable key" (`sb_publishable_...`).
+ * They occupy the same argument position in `createClient`, so both are
+ * accepted here and whichever name is set wins. That removes a whole class
+ * of "configured it but the deploy still says not configured".
+ *
+ * Either way the value is PUBLIC by design — it is shipped to the browser
+ * and RLS is what protects the data. The secret/service-role key is a
+ * different thing entirely and must never appear in a NEXT_PUBLIC_ var.
+ */
+function publishableKey(): string | undefined {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
 function requireConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = publishableKey();
   if (!url || !anonKey) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY."
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and either " +
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY."
     );
   }
   return { url, anonKey };
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && publishableKey());
 }
 
 /**

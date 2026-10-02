@@ -15,7 +15,7 @@
  *
  * Requires, in .env.local:
  *   NEXT_PUBLIC_SUPABASE_URL
- *   NEXT_PUBLIC_SUPABASE_ANON_KEY
+ *   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY  (or NEXT_PUBLIC_SUPABASE_ANON_KEY)
  *   CLERK_SECRET_KEY            (already present)
  */
 import { createClient } from "@supabase/supabase-js";
@@ -38,12 +38,13 @@ if (!userId?.startsWith("user_")) {
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const anonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const clerkSecret = process.env.CLERK_SECRET_KEY;
 
 const missing = [
   !url && "NEXT_PUBLIC_SUPABASE_URL",
-  !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  !anonKey && "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)",
   !clerkSecret && "CLERK_SECRET_KEY",
 ].filter(Boolean);
 if (missing.length) {
