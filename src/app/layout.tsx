@@ -9,6 +9,7 @@ import { getInitialTheme } from "@/lib/theme/server";
 import { OverlayProvider } from "@/components/system/OverlayProvider";
 import { SystemNotificationHost } from "@/components/system/SystemNotificationHost";
 import { ConsentBanner } from "@/components/privacy/ConsentBanner";
+import { SITE_ORIGIN } from "@/lib/legal/site";
 import "./globals.css";
 
 // Checkpoint 3 note: Chatbot, LanguagePrompt, and Loader used to mount
@@ -53,7 +54,11 @@ const mono = Geist_Mono({
   weight: ["400", "500"],
 });
 
-const siteUrl = "https://modus.example.com";
+// Was the placeholder "https://modus.example.com", which shipped to
+// production: every page advertised a canonical URL and og:url on a domain
+// that does not exist. Now the single canonical origin, shared with the
+// sitemap and robots.txt so the three can never disagree.
+const siteUrl = SITE_ORIGIN;
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getInitialLocale();
