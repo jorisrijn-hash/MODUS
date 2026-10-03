@@ -768,3 +768,104 @@ restore the intended membership.
 membership and authorization protections are in force: membership is a
 server-controlled row, re-read on every protected request, and revocation
 takes effect on the very next request.
+
+## 18. Production admin bootstrap — 3 October 2026
+
+### Identity verified against the production Clerk instance
+
+| | |
+|---|---|
+| user id | `user_3KBVdozubSltDS4W58CkOj9BLcB` |
+| email | `withmodus@gmail.com`, verified |
+| provider | `oauth_google` |
+| `two_factor_enabled` | **false** |
+| created | 2026-10-03T12:37:17Z |
+
+Read from the production instance with the `sk_live` key, which was
+checked for that prefix first. The instance holds exactly one user. The
+**development** user id was not reused, and membership was granted to
+this id explicitly — never by email match, provider, or being the first
+account.
+
+### Admin allow / deny / revoke — verified on the live site
+
+Driven with a real production session token against
+`https://www.withmodus.co`, not inferred
+(`scripts/verify-admin-production.mjs`):
+
+| Case | `/api/admin/status` | `/api/private/overview` |
+|---|---|---|
+| Anonymous | `admin:false` | **401** |
+| Signed in, membership active | `admin:true` | **200** |
+| Signed in, membership revoked | `admin:false` | **403** |
+| Membership restored | `admin:true` | **200** |
+
+The revoked case is also the "ordinary signed-in account" case: the same
+real production session, with no membership row, is refused. **Revocation
+took effect on the very next request** — no sign-out, no new session, no
+cache to wait out.
+
+Final state: exactly **one active membership row** for that user. The
+intended membership is restored.
+
+A second production Clerk account was **not** created to test an ordinary
+user separately — that was not authorized, and the revoked case covers
+the same path with a real session.
+
+### Why a new script was needed
+
+`scripts/grant-admin.mjs` uses the default `DATABASE_URL`, which locally
+is `modus_dev`. Running it unmodified would have granted admin on the
+development database. `scripts/with-production-db.mjs` loads
+`.env.supabase.local` in Node, refuses any host that is not the Supabase
+project, prints the host and never the credentials. A first attempt that
+extracted the URL with shell tools produced a mangled connection string
+and a Prisma validation error — **nothing was written anywhere**, which
+the production row count confirms.
+
+### MFA — still deferred, and now measurable
+
+`two_factor_enabled` is **false** on the production admin account, and
+`ADMIN_MFA_REQUIRED` is unset, so the application does not enforce a
+second factor. This remains the user's explicit decision. Any two-step
+verification on the underlying Google account protects the Google login
+only and is **not** application-enforced MFA.
+
+## 19. Clerk → Supabase: the production token has no `role` claim
+
+Found while verifying production PostgREST access. **The previous
+evidence used the development issuer and did not carry over.**
+
+What is correct:
+
+- `https://clerk.withmodus.co/.well-known/jwks.json` publishes a key.
+- A real production session token mints and verifies: `sub` is the
+  production user id, `iss` is `https://clerk.withmodus.co`.
+- Anonymous PostgREST access is refused on `Diagnostic`, `AdminMember`
+  and `Profile` (Postgres `42501`).
+- `AdminMember` is not readable by the browser role.
+- The grants are right: `authenticated` holds SELECT on `Diagnostic`.
+
+What is wrong:
+
+- An **authenticated** request is refused with
+  `permission denied for table Diagnostic`.
+- The production session token's claims are
+  `exp, fva, iat, iss, nbf, sid, sts, sub, v` — there is **no `role`
+  claim**.
+
+Supabase's native third-party auth assumes the Postgres role named in the
+token's `role` claim. Without it the request is treated as `anon`, which
+holds no grants — hence the refusal, despite `authenticated` being
+correctly granted.
+
+**This is a Clerk dashboard setting on the production instance, not a code
+defect.** Enable the Supabase integration for the production instance, or
+add `"role": "authenticated"` to its session-token claims. The
+development instance evidently has this and production does not, which is
+exactly why the earlier evidence did not transfer.
+
+**Current impact: none at runtime.** `src/lib/supabase/client.ts` is not
+imported by any application code — the app reads and writes through
+Prisma server-side. This is a latent gap that must be closed before any
+browser-side Supabase access is relied on, not a live fault.
