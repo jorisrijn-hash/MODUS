@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Copy, ExternalLink, Trash2 } from "lucide-react";
 import { HoldToConfirm } from "@/components/ui/HoldToConfirm";
 import { STATUSES, type ParsedDiagnostic, type Note, type ActivityEvent } from "@/lib/admin/types";
+import { WORKFLOW_STATUSES, statusLabel } from "@/lib/admin/status";
 import type { LeadFit } from "@/lib/admin/leadFit";
 import { reviewBriefToText, type ReviewBrief } from "@/lib/admin/reviewBrief";
 import { buildClientSummary, clientSummaryToText } from "@/lib/admin/clientSummary";
@@ -34,6 +35,14 @@ export function DiagnosticDetailView({
   const [status, setStatus] = useState(diagnostic.status);
   const [notes, setNotes] = useState(initialNotes);
   const [noteText, setNoteText] = useState("");
+  /*
+   * Save outcomes, surfaced rather than swallowed. Both of these were
+   * fire-and-forget `await fetch(...)` with no check on the response: a
+   * failed status change left the new value on screen as though it had
+   * been saved, and a failed note silently discarded what was typed.
+   */
+  const [statusSave, setStatusSave] = useState<"idle" | "saving" | "error">("idle");
+  const [noteSave, setNoteSave] = useState<"idle" | "saving" | "error">("idle");
   const [showBrief, setShowBrief] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -50,26 +59,44 @@ export function DiagnosticDetailView({
   const clientSummary = buildClientSummary(diagnostic);
 
   async function updateStatus(next: string) {
+    const previous = status;
     setStatus(next);
-    await fetch(`/api/private/diagnostics/${diagnostic.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    router.refresh();
+    setStatusSave("saving");
+    try {
+      const res = await fetch(`/api/private/diagnostics/${diagnostic.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setStatusSave("idle");
+      router.refresh();
+    } catch {
+      // Put the control back to what is actually stored. Leaving the new
+      // value on screen would report a change that did not happen.
+      setStatus(previous);
+      setStatusSave("error");
+    }
   }
 
   async function addNote() {
     if (!noteText.trim()) return;
-    const res = await fetch(`/api/private/diagnostics/${diagnostic.id}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: noteText }),
-    });
-    if (res.ok) {
+    setNoteSave("saving");
+    try {
+      const res = await fetch(`/api/private/diagnostics/${diagnostic.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: noteText }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
       const { note } = await res.json();
       setNotes((n) => [note, ...n]);
+      // Cleared only after the save is confirmed, so a failure never
+      // loses what was typed.
       setNoteText("");
+      setNoteSave("idle");
+    } catch {
+      setNoteSave("error");
     }
   }
 
@@ -100,17 +127,49 @@ export function DiagnosticDetailView({
             {new Date(diagnostic.createdAt).toLocaleString("en-GB")}
           </p>
         </div>
-        <select
-          value={status}
-          onChange={(e) => updateStatus(e.target.value)}
-          className="h-9 rounded border border-line bg-white px-3 font-mono text-[11px] uppercase tracking-[0.06em] text-ink outline-none"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col items-end gap-1">
+          <select
+            value={status}
+            disabled={statusSave === "saving"}
+            onChange={(e) => updateStatus(e.target.value)}
+            aria-label="Diagnostic status"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-colors focus-visible:border-modus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-modus/30 disabled:opacity-60"
+          >
+            {/* The workflow first, then any other stored value so a
+                record that already holds one keeps it. */}
+            <optgroup label="Workflow">
+              {WORKFLOW_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Other">
+              {STATUSES.filter((s) => !WORKFLOW_STATUSES.includes(s as (typeof WORKFLOW_STATUSES)[number])).map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          {statusSave === "saving" && (
+            <span className="text-[11.5px] text-muted" aria-live="polite">
+              Saving…
+            </span>
+          )}
+          {statusSave === "error" && (
+            <span className="flex items-center gap-2 text-[11.5px] text-danger" role="alert">
+              Not saved.
+              <button
+                type="button"
+                onClick={() => updateStatus(status)}
+                className="underline underline-offset-2 hover:text-ink"
+              >
+                Retry
+              </button>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -344,18 +403,34 @@ export function DiagnosticDetailView({
           <Section title="Internal Notes">
             <textarea
               value={noteText}
+              disabled={noteSave === "saving"}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="Add a private note…"
               rows={3}
               className="w-full resize-none rounded border border-line bg-paper px-3 py-2.5 text-[13.5px] text-ink outline-none focus:border-modus"
             />
-            <button
-              type="button"
-              onClick={addNote}
-              className="mt-2 rounded bg-ink px-3 py-1.5 text-[12.5px] font-medium text-paper hover:bg-graphite"
-            >
-              Save Note
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={addNote}
+                disabled={noteSave === "saving" || !noteText.trim()}
+                className="rounded-full bg-modus px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:bg-modus-light disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-modus"
+              >
+                {noteSave === "saving" ? "Saving…" : "Save note"}
+              </button>
+              {noteSave === "error" && (
+                <span className="flex items-center gap-2 text-[12px] text-danger" role="alert">
+                  Not saved — your note is still here.
+                  <button
+                    type="button"
+                    onClick={addNote}
+                    className="underline underline-offset-2 hover:text-ink"
+                  >
+                    Retry
+                  </button>
+                </span>
+              )}
+            </div>
             <div className="mt-4 space-y-3">
               {notes.map((n) => (
                 <div key={n.id} className="border-t border-line pt-3 first:border-t-0 first:pt-0">
@@ -365,7 +440,11 @@ export function DiagnosticDetailView({
                   <p className="mt-1 text-[13.5px] text-graphite">{n.body}</p>
                 </div>
               ))}
-              {notes.length === 0 && <p className="text-[13px] text-muted">No notes yet.</p>}
+              {notes.length === 0 && (
+                <p className="text-[13px] text-muted">
+                  No notes yet. Notes are private to MODUS and are never shown to the client.
+                </p>
+              )}
             </div>
           </Section>
 

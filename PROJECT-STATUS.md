@@ -1319,3 +1319,105 @@ defect, and passes locally against the fix. A test that passed on both
 would have proved nothing.
 
 Screenshots: `e2e-screens/hero-bubble-{desktop,mobile}.png`.
+
+## 25. /private upgrade (task 5)
+
+### Inbox — rebuilt
+
+On the MODUS surface: warm canvas, serif heading, restrained cream rows,
+green only where something is actionable. No decorative metrics, no
+sample rows, no new exports.
+
+| Capability | Before | Now |
+|---|---|---|
+| Search | client-triggered, server-side | unchanged, debounced, `no-store` |
+| Status filter | yes | yes, with readable labels |
+| Date range | **none** | `from`/`to`, inclusive of the whole `to` day |
+| Pagination | **none** — flat `take: 200` | server-side, 25/page, with totals |
+| Loading | blank list | skeleton rows, `aria-busy` |
+| Empty | blank list | states why, and whether filters caused it |
+| Error | blank list | explains, confirms nothing changed, offers **Try again** |
+
+The old `take: 200` silently truncated — the 201st diagnostic did not
+exist as far as the inbox was concerned, with nothing on screen saying
+so. The API now returns `total`, `page` and `pageCount`.
+
+Changing any filter returns to page 1; staying on page 4 of a result set
+that now has one page shows an empty list that reads as "no matches".
+
+### Status workflow — four states, without rewriting records
+
+The brief names New / In review / Contacted / Closed. The stored
+vocabulary is wider, and **production already holds `QUALIFIED`**. A
+record a person marked qualified is not silently rewritten into one of
+four buckets to make a redesign tidy, so:
+
+- the four are offered as the workflow, grouped first in the control;
+- any other stored value is still shown, with its own label, and is
+  still filterable;
+- nothing migrates existing rows.
+
+### Detail — save and retry states
+
+Status changes and notes were fire-and-forget `await fetch(...)` with no
+check on the response. A failed status change left the new value on
+screen as though it had saved; a failed note silently discarded what was
+typed. Both now report:
+
+- status: `Saving…`, and on failure reverts the control to what is
+  actually stored, says **Not saved**, and offers Retry;
+- notes: the composer is cleared **only after** the save is confirmed, so
+  a failure never loses the text, and offers Retry.
+
+### Verified as a real administrator
+
+`clerk.signIn()` is still blocked (§21), so the session is established the
+other way: a development Clerk session token minted through the Backend
+API — which development instances allow and production does not — applied
+as an `Authorization` header. A hand-set `__session` cookie is **not**
+accepted by Clerk's Next integration (it reported `admin: false`); the
+same token in a header is (`admin: true`). The account is a throwaway
+test user holding an `AdminMember` row in the **local** database only.
+
+`e2e/privateInbox.spec.ts`, 5 tests, all passing against the real screen:
+
+- lists real diagnostics; a nonsense search empties the list and says so;
+  clearing filters restores the previous count; a date range in the past
+  yields nothing;
+- paginates rather than truncating, and the control is honest when there
+  is only one page;
+- a 500 shows the error state, and **Try again** recovers;
+- renders on a phone;
+- **a revoked admin is refused on the very next request** — same session,
+  no sign-out: the API answers 403 and the page redirects to sign-in.
+
+Screenshots: `e2e-screens/private-inbox-{desktop,mobile,error}.png`.
+
+### Not done in this pass
+
+- **The detail view is only partly restyled.** Its save/retry behaviour
+  and the status control are done; the rest of its sections keep their
+  existing presentation. The structured answers and results were already
+  present and are unchanged — they were not rebuilt.
+- **`AdminShell` chrome** (sidebar, top bar) is not yet on the MODUS
+  surface.
+- Clerk membership enforcement, immediate revocation, the original
+  records and the notification outbox are all preserved and, for
+  revocation, re-verified above.
+- **MFA remains explicitly deferred.**
+
+### Suite stability note
+
+A full-suite run surfaced three failures that pass in isolation:
+
+- Two `responsive.spec.ts` cases (`diagnostic @ tablet`,
+  `home @ largeDesktop`). Contention in a ~12 minute serial run, not a
+  product defect; both pass when the spec is run on its own. `workers: 1`
+  is already in place for the WebGL contention this suite has always had.
+- The hero bubble **rotation** test, which was my own and genuinely
+  flaky: it sampled a fixed number of times, and a bubble cycle only
+  advances while the scene is visible and the tab active, so under load
+  fewer cycles completed in the same wall-clock window. Rewritten as a
+  condition-based poll with a generous timeout. `pickBubble` cannot
+  repeat an index consecutively, so "two distinct labels" remains the
+  right assertion — it just needed long enough to observe two bubbles.

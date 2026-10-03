@@ -1,141 +1,348 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, Search } from "lucide-react";
-import { EmptyState } from "@/components/admin/EmptyState";
+import { Search } from "lucide-react";
 import { STATUSES, type ParsedDiagnostic } from "@/lib/admin/types";
+import { STATUS_LABELS, WORKFLOW_STATUSES, statusLabel } from "@/lib/admin/status";
 
-const employeeOptions = ["ALL", "1–5", "6–20", "21–50", "51–100", "101–250", "250+"];
+/**
+ * The submitted-diagnostics inbox.
+ *
+ * Rebuilt on the MODUS surface — warm canvas, restrained cream rows,
+ * green only where something is actually actionable — and given the
+ * working parts it was missing: server-side pagination, a date range,
+ * and real loading / empty / error states instead of a list that was
+ * simply blank while it waited or when it failed.
+ *
+ * No decorative metrics and no sample rows. When there is nothing to
+ * show, it says so.
+ */
+
+const PAGE_SIZE = 25;
+
+type Response = {
+  diagnostics: ParsedDiagnostic[];
+  total: number;
+  page: number;
+  pageCount: number;
+};
 
 export default function DiagnosticsPage() {
-  const [diagnostics, setDiagnostics] = useState<ParsedDiagnostic[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<Response | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("ALL");
-  const [employees, setEmployees] = useState("ALL");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [page, setPage] = useState(1);
+  // Bumped to force a retry after an error, without changing any filter.
+  const [attempt, setAttempt] = useState(0);
+
+  // Any filter change returns to the first page: staying on page 4 of a
+  // result set that now has one page shows an empty list that looks like
+  // "no matches".
+  const resetTo = useCallback(<T,>(set: (v: T) => void) => (v: T) => {
+    set(v);
+    setPage(1);
+  }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
     if (q) params.set("q", q);
     if (status !== "ALL") params.set("status", status);
-    if (employees !== "ALL") params.set("employees", employees);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
 
-    const t = window.setTimeout(() => {
-      setLoading(true);
-      fetch(`/api/private/diagnostics?${params.toString()}`)
-        .then((r) => r.json())
-        .then((data) => setDiagnostics(data.diagnostics ?? []))
-        .finally(() => setLoading(false));
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setState("loading");
+      fetch(`/api/private/diagnostics?${params.toString()}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((json: Response) => {
+          if (cancelled) return;
+          setData(json);
+          setState("ready");
+        })
+        .catch(() => {
+          if (!cancelled) setState("error");
+        });
     }, 250);
-    return () => window.clearTimeout(t);
-  }, [q, status, employees]);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [q, status, from, to, page, attempt]);
+
+  const rows = data?.diagnostics ?? [];
+  const showing = state === "ready" && rows.length > 0;
 
   return (
-    <div>
+    <div className="max-w-[1100px]">
       <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
         MODUS / Diagnostics
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">Submitted diagnostics.</h1>
+      <h1 className="mt-2 font-serif text-[26px] leading-tight text-ink">Submitted diagnostics.</h1>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
+      {/* Filters */}
+      <div className="mt-7 flex flex-wrap items-end gap-3">
+        <label className="relative min-w-[240px] flex-1">
+          <span className="sr-only">Search diagnostics</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search company, contact, email, website…"
-            className="h-10 w-full rounded border border-line bg-white pl-9 pr-3 text-[13.5px] text-ink outline-none focus:border-modus"
+            onChange={(e) => resetTo(setQ)(e.target.value)}
+            placeholder="Company, contact, email or website"
+            className="h-10 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-[13.5px] text-ink outline-none transition-colors placeholder:text-muted focus-visible:border-modus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-modus/30"
           />
-        </div>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="h-10 rounded border border-line bg-white px-3 text-[13px] text-graphite outline-none"
-        >
-          <option value="ALL">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={employees}
-          onChange={(e) => setEmployees(e.target.value)}
-          className="h-10 rounded border border-line bg-white px-3 text-[13px] text-graphite outline-none"
-        >
-          {employeeOptions.map((e) => (
-            <option key={e} value={e}>
-              {e === "ALL" ? "All sizes" : e}
-            </option>
-          ))}
-        </select>
-        <a
-          href={`/api/private/diagnostics/export${status !== "ALL" ? `?status=${status}` : ""}`}
-          className="inline-flex h-10 items-center gap-1.5 rounded border border-line bg-white px-3 text-[13px] text-graphite hover:border-modus"
-        >
-          <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Export CSV
-        </a>
+        </label>
+
+        <Field label="Status">
+          <select
+            value={status}
+            onChange={(e) => resetTo(setStatus)(e.target.value)}
+            className="h-10 rounded-md border border-line bg-surface px-3 text-[13px] text-ink outline-none focus-visible:border-modus"
+          >
+            <option value="ALL">All</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s] ?? s}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="From">
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => resetTo(setFrom)(e.target.value)}
+            className="h-10 rounded-md border border-line bg-surface px-3 text-[13px] text-ink outline-none focus-visible:border-modus"
+          />
+        </Field>
+        <Field label="To">
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => resetTo(setTo)(e.target.value)}
+            className="h-10 rounded-md border border-line bg-surface px-3 text-[13px] text-ink outline-none focus-visible:border-modus"
+          />
+        </Field>
+
+        {(q || status !== "ALL" || from || to) && (
+          <button
+            type="button"
+            onClick={() => {
+              setQ("");
+              setStatus("ALL");
+              setFrom("");
+              setTo("");
+              setPage(1);
+            }}
+            className="h-10 rounded-md px-3 text-[13px] text-graphite underline underline-offset-4 hover:text-ink"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
-      {!loading && diagnostics.length === 0 && (
-        <div className="mt-10">
-          <EmptyState
-            id="DIAGNOSTICS / 000"
-            title="No diagnostics match."
-            body="Try a different search or filter combination."
-          />
-        </div>
-      )}
+      {/* Results */}
+      <div className="mt-6">
+        {state === "loading" && <LoadingRows />}
 
-      {diagnostics.length > 0 && (
-        <div className="mt-6 overflow-x-auto rounded-md border border-line bg-white">
-          <table className="w-full min-w-[900px] text-left text-[13px]">
-            <thead>
-              <tr className="border-b border-line font-mono text-[10px] uppercase tracking-[0.06em] text-muted">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Company</th>
-                <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Industry</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3">Primary Friction</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {diagnostics.map((d) => (
-                <tr key={d.id} className="border-b border-line last:border-b-0 hover:bg-mineral">
-                  <td className="whitespace-nowrap px-4 py-3 text-muted">
-                    {new Date(d.createdAt).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink">{d.companyName}</td>
-                  <td className="px-4 py-3 text-graphite">
-                    {d.firstName} / {d.email.replace(/^(.).*@/, "$1•••@")}
-                  </td>
-                  <td className="px-4 py-3 text-graphite">{d.industry}</td>
-                  <td className="px-4 py-3 text-graphite">{d.employees}</td>
-                  <td className="px-4 py-3 text-graphite">{d.primaryPainPoint}</td>
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-[10px] uppercase text-muted">{d.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/private/diagnostics/${d.id}`} className="text-modus hover:text-modus-light">
-                      View →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {state === "error" && (
+          <Panel>
+            <p className="text-[14px] text-ink">That didn&apos;t load.</p>
+            <p className="mt-1 text-[13px] text-graphite">
+              The diagnostics list could not be fetched. Nothing has been changed.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAttempt((a) => a + 1)}
+              className="mt-4 inline-flex h-9 items-center rounded-full bg-modus px-4 text-[13px] font-medium text-white transition-colors hover:bg-modus-light"
+            >
+              Try again
+            </button>
+          </Panel>
+        )}
+
+        {state === "ready" && rows.length === 0 && (
+          <Panel>
+            <p className="text-[14px] text-ink">No diagnostics match these filters.</p>
+            <p className="mt-1 text-[13px] text-graphite">
+              {q || status !== "ALL" || from || to
+                ? "Try widening the date range or clearing the search."
+                : "Submitted diagnostics will appear here."}
+            </p>
+          </Panel>
+        )}
+
+        {showing && (
+          <>
+            <div className="overflow-hidden rounded-md border border-line">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-line bg-surface">
+                    {["Company", "Contact", "Submitted", "Status"].map((h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((d) => (
+                    <tr key={d.id} className="border-b border-line/70 last:border-0 hover:bg-surface/60">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/private/diagnostics/${d.id}`}
+                          className="text-[13.5px] font-medium text-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-modus"
+                        >
+                          {d.companyName}
+                        </Link>
+                        <p className="mt-0.5 text-[12px] text-muted">{d.industry}</p>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-graphite">
+                        {d.firstName} {d.lastName}
+                        <p className="mt-0.5 text-[12px] text-muted">{d.email}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-[13px] text-graphite">
+                        {new Date(d.createdAt).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill status={d.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              page={data!.page}
+              pageCount={data!.pageCount}
+              total={data!.total}
+              shown={rows.length}
+              onPage={setPage}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-md border border-line bg-surface px-5 py-6">{children}</div>;
+}
+
+/** Skeleton rows, so the inbox has a shape while it loads. */
+function LoadingRows() {
+  return (
+    <div className="overflow-hidden rounded-md border border-line" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading diagnostics…</span>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 border-b border-line/70 px-4 py-3.5 last:border-0">
+          <span className="h-3 w-[22%] animate-pulse rounded bg-line/70" />
+          <span className="h-3 w-[26%] animate-pulse rounded bg-line/50" />
+          <span className="h-3 w-[14%] animate-pulse rounded bg-line/50" />
+          <span className="h-3 w-[12%] animate-pulse rounded bg-line/40" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const known = WORKFLOW_STATUSES.includes(status as (typeof WORKFLOW_STATUSES)[number]);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.08em] ${
+        status === "NEW"
+          ? "border-modus/30 bg-modus/5 text-modus"
+          : known
+            ? "border-line bg-surface text-graphite"
+            : // A value outside the workflow, shown as it is rather than
+              // relabelled into one of the four.
+              "border-line-strong/40 bg-paper text-muted"
+      }`}
+    >
+      {statusLabel(status)}
+    </span>
+  );
+}
+
+function Pagination({
+  page,
+  pageCount,
+  total,
+  shown,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  shown: number;
+  onPage: (p: number) => void;
+}) {
+  const first = (page - 1) * PAGE_SIZE + 1;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-[12.5px] text-muted">
+        {total === 0 ? "No results" : `${first}–${first + shown - 1} of ${total}`}
+      </p>
+      {pageCount > 1 && (
+        <div className="flex items-center gap-2">
+          <PageButton disabled={page <= 1} onClick={() => onPage(page - 1)}>
+            Previous
+          </PageButton>
+          <span className="px-1 text-[12.5px] text-graphite">
+            Page {page} of {pageCount}
+          </span>
+          <PageButton disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
+            Next
+          </PageButton>
         </div>
       )}
     </div>
+  );
+}
+
+function PageButton({
+  disabled,
+  onClick,
+  children,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="h-9 rounded-full border border-line bg-surface px-3.5 text-[13px] text-ink transition-colors hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-modus"
+    >
+      {children}
+    </button>
   );
 }

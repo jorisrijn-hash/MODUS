@@ -76,15 +76,27 @@ test.describe("hero process bubbles", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
+    /*
+     * Condition-based rather than a fixed number of samples. A cycle is
+     * ~5s (3s hold, 2s gap) and the loop only advances while the scene is
+     * visible and the tab is active, so under load fewer cycles complete
+     * in a given wall-clock window — which made a fixed sample count fail
+     * intermittently in a full-suite run while passing in isolation.
+     * `pickBubble` cannot repeat an index consecutively, so two distinct
+     * labels is the right assertion; it just needs long enough to see
+     * two bubbles.
+     */
     const labels = new Set<string>();
-    for (let i = 0; i < 14; i++) {
-      await page.waitForTimeout(900);
-      const s = await sample(page);
-      if (s?.state === "in" && s.opacity > 0.5 && s.text) labels.add(s.text);
-    }
-    // Rotation without immediate repeats — more than one distinct label
-    // across several cycles.
-    expect(labels.size, `only saw: ${[...labels].join(", ")}`).toBeGreaterThan(1);
+    await expect
+      .poll(
+        async () => {
+          const s = await sample(page);
+          if (s?.state === "in" && s.opacity > 0.5 && s.text) labels.add(s.text);
+          return labels.size;
+        },
+        { timeout: 40_000, intervals: [400] }
+      )
+      .toBeGreaterThan(1);
   });
 
   test("they sit over the scene, not over the headline column", async ({ page }) => {
