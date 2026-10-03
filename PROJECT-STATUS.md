@@ -1711,9 +1711,19 @@ Memory is not involved.
 
 ### What this does and does not establish
 
-**Established:** the current slowdown has an external cause, measured,
-not in the application or the specs. Four orphaned headless browsers from
-runs I had killed were also cleaned up.
+**Established:** the slowdown had an external cause, measured, not in the
+application or the specs. Four orphaned headless browsers left by runs I
+had killed were cleaned up, and the suite immediately returned to normal:
+
+| After cleanup | Result |
+|---|---|
+| Heavy chunk (hero, auth ×3, scene, privateInbox, accountSwitch) | 40 passed, **4.1m** |
+| **Full suite** | **100 passed, 0 failed, 0 skipped, 7.5m** |
+
+That is the same runtime as before the slowdown, with more tests than the
+98 of the previous full run. The orphans were my own doing — I killed
+several runs with `pkill` while chasing this, which left headless
+browsers competing for the same single worker.
 
 **Not established:** that this same condition caused the two earlier
 `responsive` failures. That remains **unexplained** — their logs, trace
