@@ -1,5 +1,7 @@
 "use client";
 
+import { useIdentity } from "@/components/auth/IdentityProvider";
+
 import { useState, useSyncExternalStore } from "react";
 import { getContextReference, listenContextReferenceChange } from "@/lib/customerContext/storage";
 import { CalendlyEmbed } from "@/components/scheduling/CalendlyEmbed";
@@ -34,9 +36,13 @@ export function ReviewSchedulingPanel({
   // of a client-only "does this visitor have a profile" branch), but
   // useSyncExternalStore is still the correct way to read localStorage
   // without a setState-in-effect — same pattern as useCustomerContext.ts.
+  // Scoped to the signed-in account: an explicit token in the URL still
+  // works for a guest arriving from their own link, but the token saved
+  // in this browser is only read back for the identity that saved it.
+  const { identity } = useIdentity();
   const storedToken = useSyncExternalStore(
     listenContextReferenceChange,
-    () => getContextReference()?.contextToken ?? null,
+    () => getContextReference(identity)?.contextToken ?? null,
     () => null
   );
   const token = explicitToken ?? storedToken;

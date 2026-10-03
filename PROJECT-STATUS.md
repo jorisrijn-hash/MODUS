@@ -944,3 +944,111 @@ So both behaviours are now evidenced on production: an administrator sees
 every record through `diagnostic_select_admin`, and an ordinary
 authenticated account sees only what it owns through
 `diagnostic_select_own` — while anonymous callers are refused outright.
+
+## 20. Account isolation — fixed (task 1 of the correction brief)
+
+### What "Sign in diagnostic" was displaying
+
+The saved Diagnostic reference — a capability token plus the company name
+— lived in `localStorage` under `modus:customer-context:v1` with **no
+record of whose it was**. `useCustomerContext` read it unconditionally,
+and `DiagnosticShell` opened the profile screen whenever it existed.
+
+So the reference was scoped to the *browser*, not the *account*. After a
+sign-out or an account switch the next person at that device saw the
+previous account's company name in the navigation and on the homepage,
+was offered "Continue Diagnostic"/"View Your Profile", and landed on the
+previous account's profile screen at `/diagnostic`. Their capability
+token also stayed in storage, readable by anyone with the device and
+usable against the public context endpoint.
+
+Guest diagnostics remain accessible, as specified: the context endpoint
+is deliberately a capability-token design for submitters who have no
+account, and that is unchanged.
+
+### What changed
+
+- **Identity is now a first-class value.** `IdentityProvider` supplies the
+  Clerk user id, or `"guest"`, or `null` while Clerk is still loading.
+  `null` is distinct on purpose: treating "not yet known" as "guest" is
+  what would flash one account's data before the account was known.
+- **Every read and write of the reference is scoped.**
+  `getContextReference(identity)` returns it only to the identity that
+  saved it. A reference written before scoping existed has no identity and
+  is returned to nobody.
+- **Foreign state is removed, not merely hidden.**
+  `purgeForeignContextReference` deletes a reference belonging to another
+  identity, so the token does not sit in storage after someone signs out.
+  Admin-tab bookkeeping for other accounts is cleared too.
+- **Cached server output is invalidated.** `AccountStateBoundary` calls
+  `router.refresh()` on an identity change, so RSC payloads rendered for
+  the previous account are not reused on a Back navigation. The context
+  fetch is `cache: "no-store"`.
+- **Late responses are discarded.** A context fetch started under one
+  account cannot write into another's state; any summary already held is
+  dropped the instant the identity changes.
+- **Guest drafts are preserved separately**, as specified. The in-progress
+  answers live in `sessionStorage` under their own key, are the work of
+  whoever is at the browser, and are not account data.
+
+### The admin tab
+
+`AdminInboxLauncher` now opens only after `/api/admin/status` confirms
+membership **for the current account**:
+
+- the account is captured when the probe starts and compared with the
+  current one when it resolves, so an answer that arrives after a switch
+  is discarded;
+- any conclusion reached for a previous account is cleared the moment the
+  identity changes;
+- it never runs for `"guest"`, and never opens merely because somebody
+  signed in — only a server `admin: true` opens it.
+
+### Verified
+
+**Unit — 12 tests** (`src/lib/customerContext/__tests__/storage.test.ts`):
+returned to its owner; **not** to a different account; **not** after
+sign-out; a guest submission is not handed to an account that signs in
+later; nothing returned while the identity is unknown; a pre-scoping
+reference is discarded; another account's token is **removed** from
+storage; the current account's own reference is kept; an unparseable
+reference is removed; nothing is purged while the identity is unknown.
+
+**Browser — 6 tests** (`e2e/accountIsolation.spec.ts`), asserting on the
+actual data and storage rather than on hidden UI:
+
+| Case | Result |
+|---|---|
+| Another account's company name anywhere in the page | absent |
+| Navigation offer | generic "Run a Diagnostic" |
+| Their token after load | **removed from `localStorage`** |
+| `/diagnostic` with a foreign reference | entry screen, no "PROFILE READY" |
+| Reload, and browser Back from another page | still absent, still removed |
+| A **guest's own** reference | honoured and kept |
+| Admin tab for an anonymous visitor | no second tab, no link |
+| `/api/admin/status` unauthenticated | `{"admin": false}` |
+
+The guest-reference case is there deliberately: a change that simply
+deleted everything would pass every isolation check while removing the
+feature.
+
+### A regression this introduced, and the fix
+
+Scoping the read broke the profile screen. The initial screen is chosen
+on the first render, when Clerk has not yet reported who the visitor is,
+so `getContextReference(null)` returned nothing and `/diagnostic` always
+opened on the entry screen. Five scene tests caught it.
+
+The screen is now settled once the identity arrives — only from the entry
+screen, and only once, so a visitor who has already started answering is
+never pulled out of the form by a late identity resolution.
+
+### Remaining limitations
+
+- The browser tests run with Clerk **signed out**, so the live identity is
+  `"guest"`. Both directions of the rule are proven, but a real
+  signed-in-to-signed-in **account switch** in a browser is not yet
+  covered by an automated test — that needs Clerk's test tooling and two
+  real accounts. The rule it would exercise is covered at unit level.
+- Tasks 2–5 of this brief (auth transition, diagnostic graphic, hero
+  bubbles, `/private` redesign) are **not started**.

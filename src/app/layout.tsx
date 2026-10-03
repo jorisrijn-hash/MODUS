@@ -1,5 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { isClerkConfigured } from "@/lib/auth/clerkConfig";
+import { IdentityProvider } from "@/components/auth/IdentityProvider";
+import { AccountStateBoundary } from "@/components/auth/AccountStateBoundary";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
@@ -168,6 +170,10 @@ export default async function RootLayout({
          * guest diagnostic keep working.
          */}
         <MaybeClerkProvider>
+          {/* Inside the Clerk provider, so it can read the session; above
+              everything that stores or shows account-specific state. */}
+          <IdentityProvider>
+          <AccountStateBoundary />
           <ThemeProvider initialTheme={initialTheme}>
             <LocaleProvider initialLocale={initialLocale}>
               <OverlayProvider>
@@ -189,6 +195,7 @@ export default async function RootLayout({
               </OverlayProvider>
             </LocaleProvider>
           </ThemeProvider>
+          </IdentityProvider>
           <div className="grain-overlay" aria-hidden />
         </MaybeClerkProvider>
       </body>

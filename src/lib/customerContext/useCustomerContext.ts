@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useIdentity } from "@/components/auth/IdentityProvider";
 import { loadDiagnosticState } from "@/lib/diagnostic/storage";
 import { getContextReference, listenContextReferenceChange } from "./storage";
 import { nextBestAction } from "./nextBestAction";
@@ -28,14 +29,6 @@ function subscribeToContextReference(callback: () => void) {
   return listenContextReferenceChange(callback);
 }
 
-function getLocalCompanyName() {
-  return getContextReference()?.companyName ?? null;
-}
-
-function getHasContextToken() {
-  return !!getContextReference()?.contextToken;
-}
-
 function getHasDiagnosticDraft() {
   const saved = loadDiagnosticState();
   return !!(saved && (saved.answers.companyName || saved.step > 0));
@@ -50,6 +43,22 @@ export type CustomerContext = {
 };
 
 export function useCustomerContext(): CustomerContext {
+  // Everything saved is read back for THIS account only. While Clerk is
+  // still loading, `identity` is null and the getters below report
+  // "nothing saved" — showing the stored reference first and correcting
+  // it afterwards is exactly the flash of another account's data this
+  // scoping exists to prevent.
+  const { identity } = useIdentity();
+
+  const getHasContextToken = useCallback(
+    () => !!getContextReference(identity)?.contextToken,
+    [identity]
+  );
+  const getLocalCompanyName = useCallback(
+    () => getContextReference(identity)?.companyName ?? null,
+    [identity]
+  );
+
   const hasContextToken = useSyncExternalStore(subscribeToContextReference, getHasContextToken, () => false);
   const hasDiagnosticDraft = useSyncExternalStore(subscribeNever, getHasDiagnosticDraft, () => false);
   const localCompanyName = useSyncExternalStore(subscribeToContextReference, getLocalCompanyName, () => null);
@@ -62,15 +71,28 @@ export function useCustomerContext(): CustomerContext {
   // own body.
   const [fetchOutcome, setFetchOutcome] = useState<"ready" | "error" | null>(null);
 
+  // Any summary already held belongs to whoever was signed in when it was
+  // fetched, so it is dropped the moment the identity changes rather than
+  // left on screen until a replacement arrives.
   useEffect(() => {
-    if (!hasContextToken) return;
-    const ref = getContextReference();
+    setSummary(null);
+    setFetchOutcome(null);
+  }, [identity]);
+
+  useEffect(() => {
+    if (!hasContextToken || !identity) return;
+    const ref = getContextReference(identity);
     if (!ref) return;
 
     let cancelled = false;
-    fetch(`/api/context/${ref.contextToken}`)
+    // `no-store`: this response is account-specific and must never be
+    // served from the browser's cache to a different account.
+    fetch(`/api/context/${ref.contextToken}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: CustomerContextSummary) => {
+        // A request started under the previous account can land after the
+        // switch. Dropping it here is what stops the old summary being
+        // written into the new account's state.
         if (!cancelled) {
           setSummary(data);
           setFetchOutcome("ready");
@@ -82,7 +104,7 @@ export function useCustomerContext(): CustomerContext {
     return () => {
       cancelled = true;
     };
-  }, [hasContextToken]);
+  }, [hasContextToken, identity]);
 
   const summaryStatus: CustomerContext["summaryStatus"] = !hasContextToken
     ? "idle"

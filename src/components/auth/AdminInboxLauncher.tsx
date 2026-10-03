@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useIdentity } from "@/components/auth/IdentityProvider";
 import { isClerkPubliclyConfigured } from "@/lib/auth/clerkConfig";
 
 /**
@@ -11,7 +11,11 @@ import { isClerkPubliclyConfigured } from "@/lib/auth/clerkConfig";
  *
  * Who gets a tab is decided by the SERVER (`/api/admin/status`, which
  * answers only about the caller's own verified session), never by anything
- * the client can assert. Ordinary accounts and signed-out visitors get
+ * the client can assert — and never merely because somebody signed in.
+ * Membership is confirmed for the CURRENT account before the tab opens:
+ * a result that arrives after the account has changed is discarded, and
+ * any conclusion reached for a previous account is cleared the instant
+ * the identity changes. Ordinary accounts and signed-out visitors get
  * nothing at all and stay in the normal flow — for them this component
  * makes one cached probe and then does nothing for the rest of the
  * session.
@@ -49,54 +53,65 @@ function writeFlag(key: string, value: Probe) {
 }
 
 export function AdminInboxLauncher() {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { identity, isLoaded } = useIdentity();
   const pathname = usePathname();
   const [blocked, setBlocked] = useState(false);
+  // The account the currently-shown state belongs to. Compared on every
+  // async result so nothing decided under a previous account can act.
+  const decidedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userId) return;
+    // Identity changed (including a sign-out): drop any membership
+    // conclusion reached for the previous account immediately, before any
+    // new probe runs. Leaving it would show the previous admin's "Open
+    // admin inbox" offer to whoever signed in next.
+    if (decidedFor.current !== null && decidedFor.current !== identity) {
+      setBlocked(false);
+    }
+    decidedFor.current = identity;
+  }, [identity]);
+
+  useEffect(() => {
+    if (!isLoaded || !identity || identity === "guest") return;
     // Never from inside the admin surface itself: that tab would spawn
     // another on every load.
     if (pathname?.startsWith("/private")) return;
 
-    const key = storageKey(userId);
+    const key = storageKey(identity);
     const seen = readFlag(key);
     if (seen) {
-      // Re-show the link if the tab was blocked earlier in this session,
-      // but never try to open another one.
       if (seen === "blocked") setBlocked(true);
       return;
     }
 
+    // Captured at request time. A probe started under one account can
+    // resolve after a switch, and acting on that answer is exactly how a
+    // tab would open for someone who is not an admin.
+    const startedFor = identity;
     let cancelled = false;
+
     (async () => {
       let admin = false;
       try {
         const res = await fetch("/api/admin/status", { cache: "no-store" });
         admin = res.ok && (await res.json())?.admin === true;
       } catch {
-        // A failed probe must not strand an admin without a way in, but it
-        // also must not retry on every navigation. Treated as "not admin"
-        // for this session; /private remains reachable directly.
         admin = false;
       }
-      if (cancelled) return;
+      // Three guards, all required: the effect is still current, the
+      // account has not changed since the request began, and the answer
+      // was yes.
+      if (cancelled || startedFor !== decidedFor.current) return;
 
       if (!admin) {
         writeFlag(key, "not-admin");
         return;
       }
 
-      // Mark BEFORE opening. If the open throws or the tab is blocked we
-      // still must not try again on the next render.
       const opened = window.open("/private", "_blank", "noopener,noreferrer");
       if (opened) {
         writeFlag(key, "opened");
       } else {
-        // Browsers routinely block a window.open that is not tied to a
-        // user gesture, which is exactly the case straight after an OAuth
-        // redirect. Offer a real link instead — a click on that is a
-        // gesture, so it always opens.
         writeFlag(key, "blocked");
         setBlocked(true);
       }
@@ -105,7 +120,7 @@ export function AdminInboxLauncher() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, userId, pathname]);
+  }, [isLoaded, identity, pathname]);
 
   if (!blocked) return null;
 

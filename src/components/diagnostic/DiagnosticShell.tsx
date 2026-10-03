@@ -18,6 +18,7 @@ import { DiagnosticRecoveryPrompt } from "@/components/diagnostic/DiagnosticReco
 import { ProfileReadyScreen } from "@/components/diagnostic/ProfileReadyScreen";
 import { useDict } from "@/lib/i18n/context";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { useIdentity } from "@/components/auth/IdentityProvider";
 import { DiagnosticScene } from "@/components/diagnostic/DiagnosticScene";
 import { StepBusiness } from "@/components/diagnostic/StepBusiness";
 import { StepOperations } from "@/components/diagnostic/StepOperations";
@@ -107,13 +108,18 @@ function resumableState() {
 // A stored profile reference only wins the initial screen if there's no
 // in-progress draft to resume instead — an active draft always takes
 // priority, since it's the more recent, more specific thing to return to.
-function initialScreen(hasDraft: boolean): Screen {
+function initialScreen(hasDraft: boolean, identity: string | null): Screen {
   if (hasDraft) return "intro";
-  return getContextReference() ? "profile" : "intro";
+  // Only this account's saved reference may open the profile screen.
+  // Unscoped, this is what showed the previous user's profile after a
+  // sign-out or an account switch.
+  return getContextReference(identity) ? "profile" : "intro";
 }
 
 export function DiagnosticShell() {
   const dict = useDict();
+  // Saved diagnostic state is per-account; see IdentityProvider.
+  const { identity } = useIdentity();
   // Gated on the MOUNT, not on a CSS class.
   //
   // A `hidden 2xl:block` wrapper was tried first and is NOT equivalent: the
@@ -142,7 +148,7 @@ export function DiagnosticShell() {
   const entryHint = useSearchParams().get("hint");
   const [resumedState] = useState(resumableState);
   const [screen, setScreen] = useState<Screen>(() =>
-    initialScreen(!!resumedState),
+    initialScreen(!!resumedState, identity),
   );
   const {
     companyName: contextCompanyName,
@@ -181,6 +187,27 @@ export function DiagnosticShell() {
   // already at the result). Reads live state via refs since this effect's
   // own cleanup only ever runs with whatever `screen`/`step` were captured
   // when it was registered otherwise.
+  /*
+   * The initial screen is chosen on the first render, when Clerk has not
+   * reported who this is yet — so the saved reference cannot be read and
+   * the entry screen is shown. Once the identity is known, a visitor who
+   * is still sitting on the entry screen with a reference of their own is
+   * moved to their profile, which is where the unscoped version put them
+   * immediately.
+   *
+   * Deliberately only from `intro`, and only once: someone who has
+   * already begun answering must never be pulled out of the form by a
+   * late identity resolution.
+   */
+  const settledInitialScreen = useRef(false);
+  useEffect(() => {
+    if (!identity || settledInitialScreen.current) return;
+    settledInitialScreen.current = true;
+    if (screen === "intro" && !resumedState && getContextReference(identity)) {
+      setScreen("profile");
+    }
+  }, [identity, screen, resumedState]);
+
   const abandonRef = useRef({ screen, step });
   useEffect(() => {
     abandonRef.current = { screen, step };
@@ -299,7 +326,10 @@ export function DiagnosticShell() {
       return;
     }
     if (result.contextToken) {
-      saveContextReference(result.contextToken, answers.companyName);
+      // Saved against whoever is signed in now. A guest submission is
+      // saved as "guest" and is not handed to an account that signs in
+      // later.
+      saveContextReference(result.contextToken, answers.companyName, identity ?? "guest");
     }
     clearDiagnosticState();
     setScreen("result");

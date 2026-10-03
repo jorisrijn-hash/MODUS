@@ -23,6 +23,20 @@ export type ContextReference = {
   contextToken: string;
   companyName: string;
   savedAt: number;
+  /**
+   * Who this reference belongs to: a Clerk user id, or "guest".
+   *
+   * Without this the reference was browser-scoped, not account-scoped, so
+   * signing out or switching accounts left the previous person's company
+   * name and capability token in place and the site kept offering their
+   * profile to whoever was there next. A reference is only ever read back
+   * for the identity that saved it.
+   *
+   * Optional only so a reference written by an older build is recognised
+   * — one without an identity is treated as belonging to nobody and is
+   * discarded on read.
+   */
+  identity?: string;
 };
 
 /** The public, lightweight summary GET /api/context/[token] returns.
