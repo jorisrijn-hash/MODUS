@@ -29,9 +29,22 @@ test.describe("admin surface is closed to anonymous callers", () => {
       data: { username: "admin", password: "anything" },
       failOnStatusCode: false,
     });
-    // 404, not 405: the route file is deleted, so there is no handler of
-    // any method left to reach.
-    expect(post.status(), "the password endpoint should no longer exist").toBe(404);
+    /*
+     * Not asserted on status alone. The dev server answers 404 here, but
+     * production renders the not-found PAGE for a POST to a path with no
+     * handler and serves it with status 200 — which read as "the password
+     * endpoint still works" when it does not. What matters is that no
+     * handler ran: no session cookie is issued and the response is the
+     * not-found page.
+     */
+    const body = await post.text();
+    const noHandler = post.status() === 404 || /could not be found/i.test(body);
+    expect(noHandler, `the password endpoint should have no handler (status ${post.status()})`).toBe(true);
+    const cookies = post.headersArray().filter((h) => h.name.toLowerCase() === "set-cookie");
+    expect(
+      cookies.some((c) => /modus_private_session/i.test(c.value)),
+      "it must never issue a session"
+    ).toBe(false);
   });
 
   const pages = ["/private", "/private/diagnostics", "/private/pipeline", "/private/settings"];

@@ -7,7 +7,7 @@ Last updated: 2 October 2026.
 
 ---
 
-## Deployment readiness: READY TO PUSH
+## Deployment readiness: DEPLOYED (3 October 2026)
 
 8 commits unpushed. The previous blocker is resolved.
 
@@ -669,3 +669,102 @@ created. Both need an explicit test arrangement from you.
   `FORCE ROW LEVEL SECURITY` is deliberately not set.
 - The four original diagnostics and the separately recorded orphaned rows
   are untouched.
+
+## 17. Deployment, 3 October 2026 — results
+
+Pushed `611be43..0504f33` and deployed. Authorized by the user, including
+one clearly-labelled synthetic production diagnostic.
+
+### The first deployment failed, and not for the reason I guessed
+
+`c0374c7` failed in **three seconds**, before compiling:
+
+```
+Error: Invalid vercel.json - `crons[0]` should NOT have additional property `comment`. Please remove it.
+```
+
+I had attributed the delay to the GitHub repository rename
+(`jorisvrr/modus` → `jorisvrr/MODUS`) preventing the integration from
+firing. That was wrong: the deployment was triggered normally and failed
+on schema validation. `vercel.json` accepts only `path` and `schedule` in
+a cron entry; the explanatory comment moved to
+`MODUS_PROVIDER_SETUP.md` §3c, together with the reason it cannot live in
+that file.
+
+Because the failed build never reached compilation, it proved nothing
+about the new code. A full `next build` was therefore run locally before
+pushing the fix, and succeeded — including `/sign-in`, `/sign-up`,
+`/api/admin/status` and the rewired `/private` routes.
+
+`0504f33` deployed successfully.
+
+### Verified live (`scripts/verify-production.mjs`)
+
+**Public and guest routes** — `/`, `/diagnostic`, `/pricing`,
+`/how-it-works`, `/legal`, `/privacypolicy`, `/sitemap.xml`,
+`/robots.txt` all **200**.
+
+**Admin surface closed** — `/private`, `/private/diagnostics`,
+`/private/settings` each **307** to
+`/sign-in?redirect_url=%2Fprivate`. `/api/private/diagnostics`,
+`/api/private/overview`, `/api/private/diagnostics/export` each **401**
+with no submission fields in the body. `/api/admin/status` returns
+`{"admin": false}` to an anonymous caller. The §13 `SESSION_SECRET` 500
+is gone.
+
+**The password endpoint has no handler.** Worth recording precisely,
+because the first check reported this as a failure and it was the check
+that was wrong: a POST to `/api/private/login` returns **200** in
+production, since Next renders the not-found *page* for a POST to a path
+with no handler. `x-matched-path` is `/_not-found`, the body is the 404
+page, and **no session cookie is issued**. A GET returns 404. Both the
+script and `e2e/private.spec.ts` now assert "no handler ran and no
+session was issued" rather than a status code, which is the property that
+actually matters and which does not differ between dev and production.
+
+**Notification worker** — no credentials **401**, wrong secret **401**,
+bare `x-vercel-cron` header **401**.
+
+**Guest submission, persistence and safe retry** — one synthetic record
+created; a retry with the same `Idempotency-Key` returned the **same
+record id** with `deduplicated: true`; the table went from 4 rows to
+exactly 5; **all four original diagnostics preserved**.
+
+**Notification delivery** — exactly one outbox row for the submission,
+`status=SENT`, `attempts=1`, `recipient=hello@withmodus.co`, `sentAt`
+14:31:47 CEST, no error. The provider accepted it; **receipt in the
+inbox is the user's to confirm.**
+
+### The synthetic record
+
+| | |
+|---|---|
+| id | `cmusdftjk0000js04pm4tad9o` |
+| company | `SYNTHETIC TEST RECORD — MODUS deployment check` |
+| email | `synthetic-test+2026-10-03T12-31-44-652Z@withmodus.co` |
+
+No real customer information. It is the fifth row; the four originals are
+untouched. Remove it whenever you like — it is identifiable by the
+company name or the `synthetic-test+` email prefix.
+
+### Still blocked on the first Google sign-in
+
+The production Clerk instance currently holds **0 users**, confirmed
+through the Clerk Backend API with the production key. Until
+`withmodus@gmail.com` signs in at `https://www.withmodus.co/sign-in`:
+
+- its production Clerk user id does not exist, so admin membership cannot
+  be granted;
+- production Clerk-token → PostgREST access cannot be verified, because
+  minting a session token requires a real user. **The existing genuine
+  evidence used the development issuer and does not carry over.**
+
+Once that sign-in has happened: read the id from the production instance
+(never reuse the development id, never grant by email match), grant with
+`scripts/grant-admin.mjs`, then test allow / deny / revoke-and-deny, and
+restore the intended membership.
+
+**MFA remains intentionally deferred** by the user's decision. All other
+membership and authorization protections are in force: membership is a
+server-controlled row, re-read on every protected request, and revocation
+takes effect on the very next request.
