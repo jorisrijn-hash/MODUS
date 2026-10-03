@@ -114,3 +114,48 @@ test.describe("the admin tab never opens for a non-admin", () => {
     expect(await res.json()).toEqual({ admin: false });
   });
 });
+
+test.describe("a guest's own work in progress survives", () => {
+  test("an unfinished diagnostic is still offered to resume", async ({ page }) => {
+    /*
+     * The guest DRAFT is separate from the account-scoped reference: it
+     * lives in sessionStorage, holds answers the person at this browser
+     * typed themselves, and is not account data. Scoping the reference
+     * must not have thrown it away.
+     *
+     * No submission is made, so this creates no record anywhere.
+     */
+    await page.goto("/diagnostic");
+    await page.getByRole("button", { name: /Start|Begin/i }).first().click();
+    await expect(page.getByText("01 / 06")).toBeVisible();
+    await page.getByLabel("Company name").fill("Guest Draft Co");
+    // Wait for the draft to actually be written before navigating, rather
+    // than racing the effect that saves it.
+    await expect
+      .poll(() => page.evaluate(() => sessionStorage.getItem("modus:diagnostic:v1")), { timeout: 5000 })
+      .toContain("Guest Draft Co");
+
+    // Leave the diagnostic entirely.
+    await page.goto("/pricing");
+    await page.waitForLoadState("networkidle");
+
+    await page.goto("/diagnostic");
+    await page.waitForLoadState("networkidle");
+
+    /*
+     * Answer the consent banner first, as a visitor would. Overlays are
+     * arbitrated through `useOverlaySlot`, and the consent banner holds
+     * the slot until it is answered — so the recovery prompt is queued
+     * behind it rather than missing. Not answering it here read as "the
+     * draft was lost", which it was not.
+     */
+    const accept = page.getByRole("button", { name: /Accept All/i });
+    if (await accept.isVisible().catch(() => false)) await accept.click();
+
+    // The draft is offered back, with the typed answer intact.
+    const resume = page.getByRole("button", { name: /Continue Diagnostic/i }).first();
+    await expect(resume).toBeVisible({ timeout: 10000 });
+    await resume.click();
+    await expect(page.getByLabel("Company name")).toHaveValue("Guest Draft Co");
+  });
+});

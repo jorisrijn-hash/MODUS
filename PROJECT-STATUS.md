@@ -1045,10 +1045,43 @@ never pulled out of the form by a late identity resolution.
 
 ### Remaining limitations
 
-- The browser tests run with Clerk **signed out**, so the live identity is
-  `"guest"`. Both directions of the rule are proven, but a real
-  signed-in-to-signed-in **account switch** in a browser is not yet
-  covered by an automated test — that needs Clerk's test tooling and two
-  real accounts. The rule it would exercise is covered at unit level.
+- **OUTSTANDING: real signed-in account-switch testing.** The browser
+  tests run with Clerk **signed out**, so the live identity is `"guest"`.
+  Both directions of the rule are proven and the production checks pass,
+  but a real signed-in-to-signed-in switch is **not** covered by an
+  automated browser test. That needs Clerk's test tooling and two
+  isolated test accounts in the **development** instance — no production
+  accounts are to be created without authorization. The rule it would
+  exercise is covered at unit level, which is not the same thing.
 - Tasks 2–5 of this brief (auth transition, diagnostic graphic, hero
   bubbles, `/private` redesign) are **not started**.
+
+### Verified on production after deploying
+
+Commit `297e728`. The isolation specs were run against
+`https://www.withmodus.co` by pointing the suite at it with
+`MODUS_E2E_BASE_URL` — **7 passed**, the same set that passes locally.
+
+Three of those are *discriminating*: on the previous build a foreign
+reference was used and kept, so their passing is itself evidence the new
+code is live, not merely that the assertions are satisfiable.
+
+| Check on production | Result |
+|---|---|
+| Foreign company name rendered anywhere | absent |
+| Foreign token after load | removed from `localStorage` |
+| `/diagnostic` with a foreign reference | entry screen, no profile |
+| Reload and browser Back | still absent, still removed |
+| A guest's own reference | honoured and kept |
+| Guest draft resume | offered, answer intact |
+| Admin tab for an anonymous visitor | not opened, no link |
+| `/api/admin/status` unauthenticated | `{"admin": false}` |
+
+No customer data was read or exposed: the checks use a fabricated token
+and a fabricated company name, and the resume check creates no record.
+
+**Guest resume needed a correction to the test, not the code.** The
+recovery prompt appeared to be missing after a draft was saved. Overlays
+are arbitrated through `useOverlaySlot`, and the consent banner holds the
+slot until answered — so the prompt was queued behind it, not lost. The
+test now answers consent first, as a visitor would.

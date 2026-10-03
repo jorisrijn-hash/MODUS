@@ -19,7 +19,10 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never", outputFolder: "e2e-report" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    // Defaults to the local dev server. `MODUS_E2E_BASE_URL` points the
+    // same specs at a deployment, which is how the account-isolation
+    // checks are run against production after a release.
+    baseURL: process.env.MODUS_E2E_BASE_URL || "http://localhost:3000",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
