@@ -46,7 +46,7 @@ export default async function PipelinePage() {
                     <Link
                       key={d.id}
                       href={`/private/diagnostics/${d.id}`}
-                      className="block rounded-sm border border-line bg-white p-3 hover:border-modus"
+                      className="block rounded-sm border border-line bg-surface p-3 hover:border-modus"
                     >
                       <p className="text-[13px] font-medium text-ink">{d.companyName}</p>
                       <p className="mt-0.5 text-[11.5px] text-muted">{d.industry}</p>

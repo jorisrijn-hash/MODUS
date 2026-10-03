@@ -1,57 +1,32 @@
 import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { signInAs, testAccounts } from "./clerkBrowserSession";
 
 /**
  * The admin inbox, driven as a real signed-in administrator.
  *
- * `clerk.signIn()` does not work against this instance (see
- * PROJECT-STATUS §21), so the session is established the other way: a
- * development Clerk session token is minted through the Backend API —
- * which development instances allow and production does not — and set as
- * the session cookie. The account is a throwaway test user that holds an
- * `AdminMember` row in the LOCAL database only.
+ * This previously applied a Backend-API token as an `Authorization`
+ * header, which exercised the API but proved nothing about browser login
+ * or cookies. It now signs in through Clerk's own client, so the browser
+ * holds real session cookies and the page is rendered for a real session
+ * — the same path a person uses.
  *
- * This is what makes it possible to check the redesign against the real
- * screen rather than asserting that components mount.
+ * The account is a throwaway development test user that holds an
+ * `AdminMember` row in the LOCAL database only.
  */
 
-function testUserId(): string | null {
-  try {
-    for (const line of readFileSync(".env.test.local", "utf8").split("\n")) {
-      const m = line.match(/^MODUS_TEST_A_USER_ID=(.*)$/);
-      if (m) return m[1];
-    }
-  } catch {}
-  return null;
-}
-
-const userId = testUserId();
+const env = testAccounts();
+const userId = env?.MODUS_TEST_A_USER_ID ?? null;
 const SHOTS = "e2e-screens";
 
-let token: string | null = null;
-try {
-  token = userId
-    ? execFileSync("node", ["scripts/mint-dev-session.mjs", userId], { encoding: "utf8" }).trim()
-    : null;
-} catch {
-  token = null;
-}
-
-/**
- * Clerk does not accept a hand-set `__session` cookie here — its Next
- * integration expects its own handshake cookies alongside it, and a
- * cookie-only attempt reports `admin: false`. The same token in an
- * `Authorization` header is accepted and reports `admin: true`, so the
- * header is applied to every request in the context, navigations
- * included.
- */
 async function asAdmin(page: Page) {
-  await page.context().setExtraHTTPHeaders({ Authorization: `Bearer ${token}` });
+  await page.goto("/");
+  await signInAs(page, env!.MODUS_TEST_A_EMAIL);
 }
 
 test.describe("admin inbox", () => {
-  test.skip(!token, "needs a development Clerk session — run scripts/create-test-users.mjs first");
+  test.skip(!env, "run scripts/create-test-users.mjs to create the isolated test accounts");
+  test.describe.configure({ mode: "serial" });
 
   test("lists real diagnostics with search, status and date filters", async ({ page }) => {
     test.setTimeout(60_000);
@@ -163,5 +138,79 @@ test.describe("admin inbox", () => {
     } finally {
       execFileSync("node", ["scripts/grant-admin.mjs", userId!], { encoding: "utf8" });
     }
+  });
+});
+
+test.describe("diagnostic detail", () => {
+  test.skip(!env, "run scripts/create-test-users.mjs to create the isolated test accounts");
+  test.describe.configure({ mode: "serial" });
+
+  async function openFirst(page: Page) {
+    await asAdmin(page);
+    await page.goto("/private/diagnostics");
+    const first = page.locator("tbody tr a").first();
+    await expect(first).toBeVisible({ timeout: 15_000 });
+    await first.click();
+    await expect(page).toHaveURL(/\/private\/diagnostics\/[a-z0-9]+/i);
+  }
+
+  test("shows the submission and keeps a note when saving fails", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openFirst(page);
+
+    await expect(page.getByText(/Internal Notes/i)).toBeVisible();
+    const composer = page.getByPlaceholder(/Add a private note/i);
+    await composer.fill("Retry-state check — not saved on purpose.");
+
+    // Fail the save once: the note must survive and a retry must be
+    // offered, rather than the text being thrown away silently.
+    let fail = true;
+    await page.route("**/notes", async (route) => {
+      if (fail) {
+        fail = false;
+        await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.getByRole("button", { name: /^Save note$/i }).click();
+    await expect(page.getByText(/Not saved — your note is still here/i)).toBeVisible({ timeout: 10_000 });
+    await expect(composer).toHaveValue("Retry-state check — not saved on purpose.");
+
+    await page.screenshot({ path: `${SHOTS}/private-detail-note-retry.png` });
+
+    // Retry succeeds and the composer clears only then.
+    await page.getByRole("button", { name: /Retry/i }).click();
+    await expect(composer).toHaveValue("", { timeout: 10_000 });
+  });
+
+  test("QUALIFIED is preserved rather than collapsed into the workflow", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openFirst(page);
+
+    const select = page.getByLabel("Diagnostic status");
+    await expect(select).toBeVisible();
+    const options = await select.locator("option").allInnerTexts();
+    // The four workflow states are offered...
+    for (const label of ["New", "In review", "Contacted", "Closed"]) {
+      expect(options, `missing workflow state ${label}`).toContain(label);
+    }
+    // ...and the wider stored vocabulary is still reachable, so a record
+    // already marked Qualified keeps that value instead of being rewritten.
+    expect(options).toContain("Qualified");
+
+    await page.screenshot({ path: `${SHOTS}/private-detail-desktop.png` });
+  });
+
+  test("renders on a phone", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openFirst(page);
+    await expect(page.getByText(/Internal Notes/i)).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOTS}/private-detail-mobile.png` });
   });
 });

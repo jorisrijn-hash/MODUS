@@ -65,7 +65,7 @@ export default async function OverviewPage() {
                 <Link
                   key={d.id}
                   href={`/private/diagnostics/${d.id}`}
-                  className="flex items-center justify-between gap-4 py-3.5 hover:bg-white"
+                  className="flex items-center justify-between gap-4 py-3.5 hover:bg-surface"
                 >
                   <div>
                     <p className="text-[13.5px] font-medium text-ink">{d.companyName}</p>
@@ -95,7 +95,7 @@ export default async function OverviewPage() {
               <Link
                 key={d.id}
                 href={`/private/diagnostics/${d.id}`}
-                className="flex items-center justify-between gap-4 py-3.5 hover:bg-white"
+                className="flex items-center justify-between gap-4 py-3.5 hover:bg-surface"
               >
                 <div>
                   <p className="text-[13.5px] font-medium text-ink">{d.companyName}</p>
@@ -117,7 +117,7 @@ export default async function OverviewPage() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-white p-5">
+    <div className="bg-surface p-5">
       <p className="text-2xl font-semibold text-ink">{value}</p>
       <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">{label}</p>
     </div>

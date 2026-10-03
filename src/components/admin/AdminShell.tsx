@@ -36,9 +36,9 @@ export function AdminShell({
   }
 
   return (
-    <div className="min-h-screen bg-mineral">
+    <div className="min-h-screen bg-paper">
       <div className="grid grid-cols-1 md:grid-cols-[220px_1fr]">
-        <aside className="border-b border-line bg-white md:min-h-screen md:border-b-0 md:border-r">
+        <aside className="border-b border-line bg-surface md:min-h-screen md:border-b-0 md:border-r">
           <div className="p-5">
             <Logo variant="wordmark" size="sm" />
             <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
@@ -55,7 +55,11 @@ export function AdminShell({
                   key={item.href}
                   href={item.href}
                   className={`flex shrink-0 items-center gap-2.5 rounded px-3 py-2.5 text-[13px] transition-colors ${
-                    active ? "bg-ink text-paper" : "text-graphite hover:bg-mineral"
+                    active
+                      // Green, not ink: the active surface is the one
+                      // MODUS accent on this chrome.
+                      ? "bg-modus text-white"
+                      : "text-graphite hover:bg-paper hover:text-ink"
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.6} />
@@ -67,7 +71,7 @@ export function AdminShell({
         </aside>
 
         <div>
-          <header className="flex items-center justify-between border-b border-line bg-white px-6 py-3">
+          <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-3">
             <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
               MODUS / Private
             </p>
@@ -75,7 +79,7 @@ export function AdminShell({
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-paper"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-modus text-white transition-colors hover:bg-modus-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-modus"
                 aria-label="Account menu"
               >
                 <span className="font-mono text-[11px] uppercase">{username.slice(0, 1)}</span>
@@ -87,7 +91,7 @@ export function AdminShell({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-10 z-20 w-52 rounded-md border border-line bg-white p-2 shadow-lg"
+                    className="absolute right-0 top-10 z-20 w-56 rounded-md border border-line bg-surface p-2 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.35)]"
                   >
                     <div className="flex items-center gap-2 border-b border-line px-2 pb-2">
                       <LogoMark className="h-3.5 w-3.5" />
@@ -96,14 +100,14 @@ export function AdminShell({
                     <Link
                       href="/private/settings"
                       onClick={() => setUserMenuOpen(false)}
-                      className="mt-1 block rounded px-2 py-1.5 text-[13px] text-graphite hover:bg-mineral"
+                      className="mt-1 block rounded px-2 py-1.5 text-[13px] text-graphite transition-colors hover:bg-paper hover:text-ink"
                     >
                       Settings
                     </Link>
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[13px] text-signal hover:bg-mineral"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[13px] text-graphite transition-colors hover:bg-paper hover:text-ink"
                     >
                       <LogOut className="h-3 w-3" strokeWidth={1.75} />
                       Sign Out

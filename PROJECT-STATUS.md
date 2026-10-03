@@ -1421,3 +1421,149 @@ A full-suite run surfaced three failures that pass in isolation:
   condition-based poll with a generous timeout. `pickBubble` cannot
   repeat an index consecutively, so "two distinct labels" remains the
   right assertion — it just needed long enough to observe two bubbles.
+
+## 26. clerk.signIn() — root cause found, and it was not the username
+
+### What was actually wrong
+
+The instance's own environment, captured from the browser:
+
+```
+password:      enabled=true  used_for_first_factor=FALSE  first_factors=[]
+email_address: enabled=true  used_for_first_factor=true   verifications=["email_code"]
+username:      enabled=true  used_for_first_factor=true   verifications=[]
+auth_config.test_mode: true
+```
+
+**Password is not a first factor on this instance.** The only first
+factor carrying a verification is `email_address` → `email_code`. So
+`clerk.signIn({ strategy: "password" })` had no supported strategy to
+use, which is why it returned without throwing and left the session null.
+
+The earlier guess — that the username requirement was to blame — was
+wrong. The username *is* a first-factor identifier; it simply has no
+verification of its own, and swapping the identifier changed nothing
+because the strategy was the problem.
+
+### The fix
+
+The instance is in **test mode**, so a Clerk test address
+(`…+clerk_test@example.com`) accepts the fixed verification code without
+a mailbox. `scripts/create-test-users.mjs` now creates the two isolated
+accounts with those addresses, and `e2e/clerkBrowserSession.ts` drives
+Clerk's own client through the real flow:
+
+```
+signIn.create → prepareFirstFactor(email_code) → attemptFirstFactor → setActive
+```
+
+### Verified — a real browser session
+
+| Evidence | Result |
+|---|---|
+| Signed-in user id | matches the account that was requested |
+| Cookies in the browser | `__session`, `__client_uat`, `__clerk_db_jwt` |
+| Survives a reload | yes, `Clerk.user` still reports the account |
+| Server view | `/api/admin/status` answers for that session |
+
+This is what the Bearer-header approach could not show. **Those tests
+have been converted**: `e2e/privateInbox.spec.ts` now signs in through
+the browser, so the admin surface is exercised with real cookies rather
+than a header.
+
+### Signed-in → signed-in switching
+
+`e2e/accountSwitch.spec.ts` is **no longer skipped** and passes with two
+real sessions:
+
+- account B never sees account A's saved diagnostic state, and A's token
+  is removed from storage;
+- an ordinary signed-in account gets no admin tab, and
+  `/api/private/overview` answers **403** on a direct call — not merely a
+  hidden control;
+- signing out clears private state and restores the generic site.
+
+## 27. Skipped tests and unexplained failures
+
+### Skipped: none
+
+The suite now reports **98 passed, 0 failed, 0 skipped**.
+
+The three that were skipped were the account-switch cases above, gated
+behind `MODUS_CLERK_SWITCH_TEST=1` while `clerk.signIn()` was blocked.
+They are ungated and passing. The fourth, long-standing skip — the
+`E2E_ADMIN_PASSWORD` test — was deleted earlier along with the password
+mechanism it tested.
+
+### The three full-suite failures, separated honestly
+
+| Failure | Status |
+|---|---|
+| Hero bubble **rotation** | **Root-caused and fixed.** It sampled a fixed number of times; a bubble cycle only advances while the scene is visible and the tab active, so under load fewer cycles completed in the same wall-clock window. Rewritten as a condition-based poll. |
+| `responsive.spec.ts` — `diagnostic @ tablet` | **Unexplained.** |
+| `responsive.spec.ts` — `home @ largeDesktop` | **Unexplained.** |
+
+On the two responsive cases: they passed in isolation, passed in the next
+full run, and passed again at `--repeat-each=3` (48/48). **That is not a
+diagnosis.** No cause was established — the artefacts were overwritten
+before the failure messages were read, and "it passed afterwards" does
+not explain why it failed. Recorded as an open question rather than
+closed as contention. If it recurs, the failure output needs capturing
+before anything else is run.
+
+## 28. Hosted Clerk screens
+
+Exact dashboard steps, the colour/typography/shape values mapped to the
+MODUS tokens, and the limitations are in **`MODUS_CLERK_THEMING.md`**.
+
+The short version: `appearance` and `globals.css` reach only the
+components mounted in this app. `accounts.withmodus.co` is served by
+Clerk and keeps its defaults until it is themed in the dashboard against
+the production instance. That change cannot be made from this repository
+and nothing in the suite can assert it.
+
+## 29. /private — finished on the MODUS surface
+
+`AdminShell` and the detail view are now on the warm canvas with cream
+surfaces and green actions: no `bg-white` remains anywhere under
+`src/components/admin` or `src/app/private`. The active navigation item
+is MODUS green rather than ink.
+
+Preserved and re-verified: `QUALIFIED` is still offered and still stored
+(asserted directly), pagination and filtering work, a failed note is
+**kept** with a retry, and a revoked admin is refused on the very next
+request.
+
+One thing the screenshots caught that nothing else would have: the
+"possible duplicate" panel listed **every** match — on a busy table that
+ran past twenty-five lines and pushed the actual submission off the
+screen. It is now a disclosure showing the full count with the five most
+recent, so nothing is hidden and the hint is no longer the page.
+
+### Evidence
+
+- `e2e/privateInbox.spec.ts`: **8 tests**, signed in through the browser.
+- Screenshots: `private-inbox-{desktop,mobile,error}.png`,
+  `private-detail-{desktop,mobile}.png`,
+  `private-detail-note-retry.png`.
+
+## 30. Auth morph — visual evidence
+
+DOM continuity shows the shell is not re-created; it does not show what
+the transition looks like. Both now exist:
+
+- **Stills** `auth-morph-{0-before,1,2,3-during,4-after}.png`. Stated
+  plainly: the mid-flight frames mostly land *after* the ~420ms swap,
+  because screenshot latency exceeds the animation, so they show the
+  destination more than the morph.
+- **A recording**, which does show it:
+  `test-results/authMorphRecording-records-sign-in-to-sign-up-and-back-chromium/video.webm`.
+
+A detail worth recording, found while writing the recording test: during
+the swap **both headings are in the DOM at once** — `AnimatePresence`
+holds the outgoing copy while the incoming one arrives. That broke a
+generic `h1` locator, and it is also direct evidence that the copy is
+exchanged in place rather than the page being replaced.
+
+The shared mark is asserted not to shift by more than 2px across the
+navigation: it is the fixed point the rest transitions around.

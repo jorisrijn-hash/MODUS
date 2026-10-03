@@ -58,7 +58,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   return (
     <div>
       <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">{title}</p>
-      <div className="mt-3 divide-y divide-line rounded-md border border-line bg-white">{children}</div>
+      <div className="mt-3 divide-y divide-line rounded-md border border-line bg-surface">{children}</div>
     </div>
   );
 }

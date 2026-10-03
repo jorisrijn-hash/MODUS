@@ -126,3 +126,42 @@ for (const [name, viewport] of [
     }
   });
 }
+
+test("captures the morph mid-flight, not just its endpoints", async ({ page }) => {
+  /*
+   * DOM continuity proves the shell is not re-created. It does not show
+   * what the transition LOOKS like. These frames are taken during the
+   * swap so the morph can be judged rather than asserted: the mark holds
+   * still, the heading block is part-way through its exchange, and the
+   * card is between its two heights.
+   */
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/sign-in");
+  await settle(page);
+
+  // Dismiss the consent banner so it does not sit over the frames.
+  const accept = page.getByRole("button", { name: /Accept All/i });
+  if (await accept.isVisible().catch(() => false)) await accept.click();
+  await page.waitForTimeout(400);
+
+  const markBefore = await page.locator('[aria-label="MODUS home"]').boundingBox();
+  await page.screenshot({ path: `${SHOTS}/auth-morph-0-before.png` });
+
+  await page.getByRole("link", { name: /Create an account/i }).click();
+  // Three frames across the ~420ms swap.
+  for (const [i, delay] of [120, 100, 120].entries()) {
+    await page.waitForTimeout(delay);
+    await page.screenshot({ path: `${SHOTS}/auth-morph-${i + 1}-during.png` });
+  }
+
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS}/auth-morph-4-after.png` });
+
+  // The mark did not move: it is the fixed point the rest transitions
+  // around, which is what makes this a morph rather than a page swap.
+  const markAfter = await page.locator('[aria-label="MODUS home"]').boundingBox();
+  expect(Math.abs(markAfter!.x - markBefore!.x), "the shared mark should not shift").toBeLessThan(2);
+  expect(Math.abs(markAfter!.y - markBefore!.y), "the shared mark should not shift").toBeLessThan(2);
+});
+

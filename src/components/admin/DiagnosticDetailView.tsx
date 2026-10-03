@@ -192,14 +192,32 @@ export function DiagnosticDetailView({
       </div>
 
       {duplicates.length > 0 && (
-        <div className="mt-4 rounded-sm border border-signal/30 bg-signal/5 p-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-signal">Possible Duplicate</p>
-          {duplicates.map((d) => (
-            <p key={d.id} className="mt-1 text-[13px] text-graphite">
-              {d.companyName}, submitted {new Date(d.createdAt).toLocaleDateString()}
-            </p>
-          ))}
-        </div>
+        /*
+         * Capped. This listed every match, which on a busy table ran to
+         * dozens of lines and pushed the actual submission off the
+         * screen — a hint that had become the page. The count is still
+         * reported in full, so nothing is hidden, but only the few most
+         * recent are spelled out.
+         */
+        <details className="mt-4 rounded-md border border-line bg-surface p-3" open={duplicates.length <= 5}>
+          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.06em] text-muted marker:text-muted">
+            {duplicates.length === 1
+              ? "1 possible duplicate"
+              : `${duplicates.length} possible duplicates`}
+          </summary>
+          <div className="mt-2 space-y-1">
+            {duplicates.slice(0, 5).map((d) => (
+              <p key={d.id} className="text-[13px] text-graphite">
+                {d.companyName}, submitted {new Date(d.createdAt).toLocaleDateString("en-GB")}
+              </p>
+            ))}
+            {duplicates.length > 5 && (
+              <p className="pt-1 text-[12.5px] text-muted">
+                and {duplicates.length - 5} more
+              </p>
+            )}
+          </div>
+        </details>
       )}
 
       <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1.4fr_1fr]">
@@ -297,7 +315,7 @@ export function DiagnosticDetailView({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-3 space-y-4 overflow-hidden rounded-sm border border-line bg-white p-4"
+                  className="mt-3 space-y-4 overflow-hidden rounded-sm border border-line bg-surface p-4"
                 >
                   <div>
                     <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">What We Understand</p>
@@ -333,7 +351,7 @@ export function DiagnosticDetailView({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-3 space-y-4 overflow-hidden rounded-sm border border-line bg-white p-4"
+                  className="mt-3 space-y-4 overflow-hidden rounded-sm border border-line bg-surface p-4"
                 >
                   <BriefBlock title="Context" items={reviewBrief.context} />
                   <BriefBlock title="What We Know" items={reviewBrief.whatWeKnow} />
@@ -407,7 +425,7 @@ export function DiagnosticDetailView({
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="Add a private note…"
               rows={3}
-              className="w-full resize-none rounded border border-line bg-paper px-3 py-2.5 text-[13.5px] text-ink outline-none focus:border-modus"
+              className="w-full resize-none rounded-md border border-line bg-paper px-3 py-2.5 text-[13.5px] text-ink outline-none transition-colors placeholder:text-muted focus-visible:border-modus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-modus/30 disabled:opacity-60"
             />
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <button

@@ -127,7 +127,7 @@ export function PricingCalculator({
           <select
             value={scopeOverride}
             onChange={(e) => setScopeOverride(e.target.value as ImplementationScope)}
-            className="h-8 rounded border border-line bg-white px-2 text-[12.5px] text-ink outline-none focus:border-modus"
+            className="h-8 rounded border border-line bg-surface px-2 text-[12.5px] text-ink outline-none focus:border-modus"
           >
             {SCOPE_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -155,7 +155,7 @@ export function PricingCalculator({
         </div>
       </div>
 
-      <div className="rounded-sm border border-line bg-white p-3">
+      <div className="rounded-sm border border-line bg-surface p-3">
         <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
           Reviewed Estimate (after MODUS validates)
         </p>
@@ -191,7 +191,7 @@ export function PricingCalculator({
         </div>
       </div>
 
-      <div className="rounded-sm border border-line bg-white p-3">
+      <div className="rounded-sm border border-line bg-surface p-3">
         <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
           Final Proposal (agreed structure)
         </p>
@@ -279,7 +279,7 @@ export function PricingCalculator({
           diagnostic.finalProposalAmount, the actually-persisted value, so
           this can't fire on an edit that was never saved. */}
       {diagnostic.finalProposalAmount != null && (
-        <div className="rounded-sm border border-line bg-white p-3">
+        <div className="rounded-sm border border-line bg-surface p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">Send Proposal</p>
           {!diagnostic.contextToken ? (
             <p className="mt-1.5 text-[12.5px] text-muted">

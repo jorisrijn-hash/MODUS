@@ -1,80 +1,30 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clerk, clerkSetup } from "@clerk/testing/playwright";
-import { readFileSync } from "node:fs";
+import { signInAs, signOut, currentUserId, testAccounts } from "./clerkBrowserSession";
 
 /**
  * The signed-in account-switch case, in a real browser with two real
- * sessions.
+ * sessions and real Clerk cookies.
  *
- * Everything else about account isolation is asserted with Clerk signed
- * out, where the identity is "guest". That proves both directions of the
- * rule but never exercises the case the bug was actually reported for:
- * one signed-in account followed by another at the same browser.
+ * This was blocked. `clerk.signIn({ strategy: "password" })` returned
+ * without throwing and left `Clerk.session` null. The cause was not the
+ * username requirement — the instance's own environment reports
+ * `password.used_for_first_factor: false` with an empty `first_factors`,
+ * and the only first factor on `email_address` is `email_code`. Password
+ * is simply not a sign-in strategy here.
  *
- * Runs against the DEVELOPMENT Clerk instance with two isolated accounts
- * created by `scripts/create-test-users.mjs`. It skips itself when those
- * are not configured, so a routine run is unaffected and no production
- * account is ever involved.
+ * The accounts are now Clerk test addresses and the sign-in goes through
+ * Clerk's own client end to end, so the browser holds genuine `__session`
+ * and `__client_uat` cookies. See `clerkBrowserSession.ts`.
  */
 
-function testEnv(): Record<string, string> | null {
-  const env: Record<string, string> = {};
-  for (const file of [".env.test.local", ".env.local", ".env"]) {
-    try {
-      for (const line of readFileSync(file, "utf8").split("\n")) {
-        const m = line.match(/^([A-Z_0-9]+)=(.*)$/);
-        if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-      }
-    } catch {}
-  }
-  // clerkSetup() reads these from process.env; Playwright does not load
-  // .env files itself.
-  process.env.CLERK_PUBLISHABLE_KEY ||= env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  process.env.CLERK_SECRET_KEY ||= env.CLERK_SECRET_KEY;
-  return env.MODUS_TEST_A_EMAIL && env.MODUS_TEST_B_EMAIL ? env : null;
-}
-
-const env = testEnv();
-
-/*
- * Opt-in, and currently NOT passing.
- *
- * The accounts and the helper are in place, but `clerk.signIn()` does not
- * establish a session against this development instance: it returns
- * without throwing and `window.Clerk.session` stays null, so every
- * assertion below runs as a signed-out visitor and the first one fails
- * for the wrong reason. Rather than leave a red suite or, worse, soften
- * the assertions until it passes while proving nothing, this is gated
- * behind an explicit flag and recorded as an open gap in
- * PROJECT-STATUS.md.
- *
- *   MODUS_CLERK_SWITCH_TEST=1 npx playwright test e2e/accountSwitch.spec.ts
- */
-const ENABLED = process.env.MODUS_CLERK_SWITCH_TEST === "1";
+const env = testAccounts();
 const KEY = "modus:customer-context:v1";
 
 test.describe("switching accounts at the same browser", () => {
-  test.skip(
-    !ENABLED || !env,
-    "set MODUS_CLERK_SWITCH_TEST=1 after running scripts/create-test-users.mjs. " +
-      "Known blocker: clerk.signIn() does not establish a session on this instance."
-  );
+  test.skip(!env, "run scripts/create-test-users.mjs to create the isolated test accounts");
   test.describe.configure({ mode: "serial" });
 
-  test.beforeAll(async () => {
-    await clerkSetup();
-  });
-
-  const signIn = async (page: Page, which: "A" | "B") => {
-    await clerk.signIn({
-      page,
-      signInParams: {
-        strategy: "password",
-        identifier: env![`MODUS_TEST_${which}_EMAIL`],
-        password: env![`MODUS_TEST_${which}_PASSWORD`],
-      },
-    });
-  };
+  const signIn = (page: Page, which: "A" | "B") => signInAs(page, env![`MODUS_TEST_${which}_EMAIL`]);
 
   const stored = (page: Page) => page.evaluate((k) => window.localStorage.getItem(k), KEY);
 
@@ -95,7 +45,7 @@ test.describe("switching accounts at the same browser", () => {
     expect(await stored(page), "A's own reference should be kept for A").not.toBeNull();
 
     // Switch accounts.
-    await clerk.signOut({ page });
+    await signOut(page);
     await page.goto("/");
     await signIn(page, "B");
     await page.goto("/");
@@ -145,7 +95,7 @@ test.describe("switching accounts at the same browser", () => {
       [KEY, JSON.stringify({ contextToken: "tok_account_a", companyName: "Account A Company BV", savedAt: Date.now(), identity: env!.MODUS_TEST_A_USER_ID })] as const
     );
 
-    await clerk.signOut({ page });
+    await signOut(page);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
