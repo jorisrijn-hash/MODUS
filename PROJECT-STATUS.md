@@ -1129,3 +1129,62 @@ Likely next step: the instance requires a username, which suggests its
 sign-in strategies differ from the helper's default. Worth checking the
 development instance's enabled identifiers and first-factor strategies
 before spending further time in the test harness.
+
+## 22. Auth transition (task 2) — shared shell, real morph
+
+### What changed
+
+`/sign-in` and `/sign-up` each rendered their own copy of the shell, so
+moving between them unmounted everything and the whole page cross-faded.
+Both routes now sit in a `(auth)` route group with a shared layout, so
+the mark, the heading block and the card surface are **never unmounted**.
+Only the words and the Clerk form inside change, and the surface animates
+its own height to whatever the new form needs.
+
+The route group does not change the URLs: `/sign-in` and `/sign-up` are
+still real routes with real history entries.
+
+Specifics worth recording:
+
+- The Clerk form is **not keyed** on the route. Clerk owns that subtree,
+  and re-mounting it on every navigation would discard in-progress input
+  and any provider handshake. Only the copy is keyed, with
+  `mode="popLayout"` so outgoing text leaves flow instead of stacking.
+- **Reduced motion** gets the same screen, arrived at immediately —
+  `duration: 0` and no layout animation. The request is for no motion,
+  not for a different screen.
+- Copy is the brief's: *"Save your progress and return with a clearer
+  picture."* No invented benefits.
+
+### Verified — 8 tests (`e2e/authTransition.spec.ts`)
+
+"Looks animated" is not testable; what makes it a morph rather than a
+crossfade is. The shared mark is **tagged in the DOM before navigating
+and asserted to still carry that tag afterwards** — proving it is the
+same node, never unmounted.
+
+| Check | Result |
+|---|---|
+| Shared mark survives the navigation | same DOM node |
+| Copy changes with the route | sign-in ↔ sign-up headings |
+| Real URLs, browser Back | `/sign-up` → Back → `/sign-in` |
+| Clerk form still functional after the morph | primary action present |
+| Form readable throughout | `rgb(30,59,46)` on white, fully opaque |
+| Keyboard focus + visible ring + Enter navigates | yes |
+| Reduced motion | correct screen immediately |
+
+Screenshots: `e2e-screens/auth-{sign-in,sign-up}-{desktop,mobile}.png`.
+
+### Limitations
+
+- **Hosted Clerk screens at `accounts.withmodus.co` are not styled by
+  this work.** `appearance` and application CSS apply only to the
+  components mounted in this app. The hosted continuation screens —
+  including parts of the OAuth flow and account management — are rendered
+  by Clerk on its own domain and can only be themed through the Clerk
+  dashboard's appearance settings. That is a dashboard change and cannot
+  be made from this repository.
+- **GitHub still appears as a provider in the local screenshots.** Those
+  run against the **development** instance; it was disabled in
+  production. The development instance should be brought in line, or
+  local captures will keep showing a provider production does not offer.
