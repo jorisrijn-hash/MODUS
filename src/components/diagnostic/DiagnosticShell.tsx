@@ -9,7 +9,6 @@ import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Reveal } from "@/components/ui/Reveal";
 import { MagneticButton } from "@/components/ui/MagneticButton";
 import { SystemMap } from "@/components/diagnostic/SystemMap";
-import { ProfilePanel } from "@/components/diagnostic/ProfilePanel";
 import { ProgressBar } from "@/components/diagnostic/ProgressBar";
 import { ReviewScreen } from "@/components/diagnostic/ReviewScreen";
 import { SubmitTransition } from "@/components/diagnostic/SubmitTransition";
@@ -19,7 +18,7 @@ import { ProfileReadyScreen } from "@/components/diagnostic/ProfileReadyScreen";
 import { useDict } from "@/lib/i18n/context";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { useIdentity } from "@/components/auth/IdentityProvider";
-import { DiagnosticScene } from "@/components/diagnostic/DiagnosticScene";
+import { DiagnosticProfile } from "@/components/diagnostic/DiagnosticProfile";
 import { StepBusiness } from "@/components/diagnostic/StepBusiness";
 import { StepOperations } from "@/components/diagnostic/StepOperations";
 import { StepSystems } from "@/components/diagnostic/StepSystems";
@@ -363,79 +362,7 @@ export function DiagnosticShell() {
   // (no exit animation, each screen just fades in on its own keyed
   // motion.div) is both simpler and, verified via Playwright, reliable
   // where the AnimatePresence version was not.
-  /*
-   * The topic layers share the right column with `ProfilePanel`.
-   *
-   * The panel was `sticky top-24`, which made the two provably
-   * impossible to separate: a sticky panel moves relative to the
-   * document, so no fixed offset clears it everywhere. At the top of the
-   * page it sits at its natural y (199 at 1440x900, bottom 723); once
-   * stuck it rises to y=96 (bottom 621). Anchoring the layers to the
-   * stuck bottom overlapped at scroll 0; anchoring to the natural bottom
-   * left 121px, below anything worth rendering.
-   *
-   * So the panel stops following the scroll while the layers are shown
-   * beside it — both are then anchored in the document and the layers are
-   * placed at the panel's measured bottom edge. They cannot overlap at
-   * any scroll position or on any step, which the e2e spec asserts
-   * directly rather than inferring from the numbers here.
-   *
-   * The panel grows as answers accumulate (588px to 635px at 1024 across
-   * the six steps), so a ResizeObserver keeps this current rather than
-   * sampling it once.
-   */
   const shellRef = useRef<HTMLDivElement>(null);
-  const profileColumnRef = useRef<HTMLDivElement>(null);
-  const [layersBand, setLayersBand] = useState<{ top: number; height: number } | null>(null);
-
-  useEffect(() => {
-    if (screen !== "form" || !wideEnoughForScene) {
-      setLayersBand(null);
-      return;
-    }
-    // ProfilePanel's own root is the bordered box.
-    const panel = profileColumnRef.current?.firstElementChild as HTMLElement | null;
-    const shell = shellRef.current;
-    if (!panel || !shell) {
-      setLayersBand(null);
-      return;
-    }
-    const GAP = 24;
-    const BOTTOM_MARGIN = 40;
-    // Below this the layers read as a sliver of noise rather than as
-    // separated planes, so they are not shown at all. A measured
-    // decision, not a breakpoint: at 1024x800 the panel alone is 635px.
-    const MIN_HEIGHT = 170;
-    const MAX_HEIGHT = 300;
-    const column = profileColumnRef.current!;
-    const measure = () => {
-      const shellTop = shell.getBoundingClientRect().top + window.scrollY;
-      /*
-       * The panel's NATURAL bottom — the column's top plus the panel's
-       * height — not its current rect. Whether the panel is sticky
-       * depends on this measurement, so reading its live position would
-       * feed back on itself: measured while stuck, the band would be
-       * computed from the stuck offset, the panel would then be switched
-       * to static and drop back down into it. The column is never sticky,
-       * so this is stable at any scroll position.
-       */
-      const columnTop = column.getBoundingClientRect().top + window.scrollY;
-      const top = columnTop + panel.offsetHeight - shellTop + GAP;
-      const available = shell.offsetHeight - top - BOTTOM_MARGIN;
-      setLayersBand(
-        available >= MIN_HEIGHT ? { top, height: Math.min(available, MAX_HEIGHT) } : null
-      );
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(panel);
-    ro.observe(shell);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [screen, step, wideEnoughForScene]);
 
   /*
    * Where the scene sits on each screen.
@@ -466,31 +393,23 @@ export function DiagnosticShell() {
           : null;
       case "form":
         /*
-         * Anchored at the panel's measured bottom edge — see above. Both
-         * sit in the document, so this holds at every scroll position.
+         * The whole right column now, because the panel that used to
+         * occupy it is gone. `sticky` rather than `absolute`: the form is
+         * long, and the profile the visitor is building should stay with
+         * them as they answer — which is what the old panel's
+         * `sticky top-24` provided and what replacing it must not lose.
          *
-         * Deliberately never `null` here. The band is measured in an
-         * effect, so it is unset on the first form render; returning
-         * `null` for that one frame would unmount the scene and take the
-         * WebGL context and the point positions with it, which is exactly
-         * the continuity the sphere -> layers morph depends on. Instead
-         * the scene stays mounted and is simply not drawn until it has a
-         * band, and stays undrawn if the column never has room for one.
+         * `position: fixed` is not an option here; `PageTransition`
+         * leaves `filter: blur(0px)` on an ancestor and a filter creates
+         * a containing block for fixed descendants. Verified with a
+         * probe. Sticky is unaffected by that.
          */
-        if (!wideEnoughForScene) return null;
-        return layersBand
+        return wideEnoughForScene
           ? {
-              band: "",
-              size: "w-[41%]",
-              bandStyle: { top: layersBand.top },
-              sizeStyle: { height: layersBand.height },
+              band: "sticky top-24 h-0",
+              size: "h-[calc(100svh-8rem)] w-[41%]",
             }
-          : {
-              band: "invisible",
-              size: "w-[41%]",
-              bandStyle: { top: 0 },
-              sizeStyle: { height: 1 },
-            };
+          : null;
       case "review":
       case "submitting":
       case "submit_error":
@@ -550,8 +469,20 @@ export function DiagnosticShell() {
        */}
       {scenePlacement && (
         <div
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-0 z-0 ${scenePlacement.band}`}
+          /*
+           * No longer `aria-hidden` on the wrapper. It used to hold only
+           * a decorative canvas; it now also carries the profile readout,
+           * which is real information about the visitor's own answers and
+           * must reach assistive technology. The canvas, its labels and
+           * the fallback mark themselves hidden inside `DiagnosticScene`,
+           * so nothing decorative is announced.
+           *
+           * `pointer-events-none` still applies to the scene; the readout
+           * re-enables them for its own controls.
+           */
+          className={`pointer-events-none z-0 ${
+            scenePlacement.band.startsWith("sticky") ? "" : "absolute inset-x-0"
+          } ${scenePlacement.band}`}
           style={scenePlacement.bandStyle}
         >
           {/*
@@ -564,10 +495,14 @@ export function DiagnosticShell() {
            */}
           <Container>
             <div className={`ml-auto ${scenePlacement.size}`} style={scenePlacement.sizeStyle}>
-              <DiagnosticScene
+              <DiagnosticProfile
                 screen={screen}
                 step={step}
+                answers={answers}
                 labels={dict.diagnosticShell.stepTopics}
+                // The readout is the answering stages' business; the
+                // entry sphere and the closing compositions stand alone.
+                showReadout={screen === "form"}
                 className="h-full w-full"
               />
             </div>
@@ -715,11 +650,19 @@ export function DiagnosticShell() {
                 </div>
               </div>
 
-              <div className="hidden lg:block" ref={profileColumnRef}>
-                {/* Stops following the scroll while the topic layers are
-                    shown beneath it, so the two stay disjoint. */}
-                <ProfilePanel answers={answers} sticky={!layersBand} />
-              </div>
+              {/*
+                * The "MODUS / INITIAL PROFILE" panel stood here: a
+                * bordered card with a static node map and the facts,
+                * above a second WebGL scene further down the page. Two
+                * graphics competing on one screen, one of which never
+                * responded to anything.
+                *
+                * It is replaced, not moved: the profile is now part of
+                * the one composition that also carries the stage, which
+                * is mounted once at shell level so its points persist
+                * across the whole journey. The column is left empty here
+                * deliberately — see `scenePlacement`.
+                */}
             </div>
           </Container>
         </motion.div>

@@ -215,12 +215,14 @@ export function DiagnosticScene({
       labelLayerRef.current?.querySelectorAll<HTMLElement>("[data-layer]") ?? []
     );
     const centroid = new THREE.Vector3();
+    // Reused for per-point projection while finding a layer's right edge.
+    const point = new THREE.Vector3();
 
     function positionLabels(stage: DiagnosticStage) {
       if (!labelEls.length) return;
       // Labels belong to the question stages. At entry nothing has been
-      // answered, so naming topics there would imply progress that has not
-      // happened; the composed states have the form's own headings.
+      // answered, so naming topics there would imply progress that has
+      // not happened; the composed states have the form's own headings.
       const show = stage.kind === "layers";
       const w = canvas!.clientWidth;
       const h = canvas!.clientHeight;
@@ -231,14 +233,29 @@ export function DiagnosticScene({
           el.style.opacity = "0";
           continue;
         }
+        /*
+         * Each label is placed against ITS OWN layer, just beyond that
+         * layer's rightmost point, with a short leader line back to it.
+         *
+         * They used to be pinned to the layer centroid as filled pills,
+         * which lined them up into what read as a vertical menu floating
+         * over the scene rather than annotation of it. Following each
+         * layer's own extent means they sit at different depths and
+         * different offsets, the way a label on a diagram does.
+         */
         centroid.set(0, 0, 0);
         let n = 0;
+        let rightmostX = -Infinity;
         for (let i = 0; i < count; i++) {
           if (cloud.layerOf[i] !== layer) continue;
           centroid.x += positions[i * 3];
           centroid.y += positions[i * 3 + 1];
           centroid.z += positions[i * 3 + 2];
           n++;
+          point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+          root.localToWorld(point);
+          point.project(camera);
+          if (point.x > rightmostX) rightmostX = point.x;
         }
         if (!n) continue;
         centroid.divideScalar(n);
@@ -247,18 +264,23 @@ export function DiagnosticScene({
 
         // Behind the camera or outside the frame: suppress rather than
         // pin a label to a point that is not really there.
-        if (centroid.z > 1 || Math.abs(centroid.x) > 1 || Math.abs(centroid.y) > 1) {
+        if (centroid.z > 1 || Math.abs(centroid.y) > 1) {
           el.style.opacity = "0";
           continue;
         }
-        const x = (centroid.x * 0.5 + 0.5) * w;
+
         const y = (-centroid.y * 0.5 + 0.5) * h;
-        el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -50%)`;
-        // The active topic is legible; the rest are present but quiet, so
-        // the reader is never asked to parse six labels at once.
+        const edgeX = (rightmostX * 0.5 + 0.5) * w;
+        // Keep the label inside the canvas; if its own layer reaches the
+        // right edge, tuck it back in rather than let it be clipped.
+        const x = Math.min(edgeX + 12, w - 8);
+        el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translateY(-50%)`;
+
         const active = stage.kind === "layers" && layer === stage.activeLayer;
-        el.style.opacity = active ? "1" : "0.28";
-        el.style.fontWeight = active ? "500" : "400";
+        // The topic being answered is legible; the rest are present but
+        // quiet, so the reader is never asked to parse six at once.
+        el.style.opacity = active ? "1" : "0.3";
+        el.dataset.active = active ? "true" : "false";
       }
     }
 
@@ -341,8 +363,11 @@ export function DiagnosticScene({
           <span
             key={label}
             data-layer={i}
-            className="absolute left-0 top-0 whitespace-nowrap rounded-full border border-line/60 bg-surface/85 px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink opacity-0 backdrop-blur-[2px] transition-opacity duration-300"
+            // An annotation, not a chip: no fill, no border, no backdrop.
+            // The leader line is the connection to the layer it names.
+            className="absolute left-0 top-0 flex items-center gap-1.5 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-graphite opacity-0 transition-opacity duration-300 data-[active=true]:text-ink"
           >
+            <span aria-hidden className="h-px w-3 bg-line-strong" />
             {label}
           </span>
         ))}

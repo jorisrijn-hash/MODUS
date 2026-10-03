@@ -92,34 +92,21 @@ async function expectClearOf(
 
 
 /**
- * The ProfilePanel's own bordered box. Not matched on `.sticky`: the
- * panel stops being sticky precisely when the layers are shown beside it,
- * which is the case this is here to check.
+ * The old "MODUS / Initial Profile" node-map card must be gone, not
+ * merely moved.
+ *
+ * This replaces a clearance check between the scene and that panel. Once
+ * the panel was removed, its locator (`div.rounded-md.border`) still
+ * matched one unrelated element, so the check kept passing while
+ * asserting nothing about anything. Asserting its absence is the claim
+ * that actually matters now.
  */
-function profilePanel(page: Page) {
-  return page.locator("div.rounded-md.border").first();
-}
-
-/**
- * The layers share the right column with the `sticky` ProfilePanel, which
- * moves as the page scrolls. This asserts they are disjoint wherever the
- * page is parked — the regression being that the panel caught up with the
- * scene and covered its upper half once scrolled down.
- */
-async function expectPanelClearOfScene(page: Page, where: string) {
-  const a = await scene(page).first().boundingBox();
-  const b = await profilePanel(page).boundingBox();
-  expect(a, "scene canvas should be present").not.toBeNull();
-  expect(b, "profile panel should be present").not.toBeNull();
-  const disjoint =
-    a!.x + a!.width <= b!.x ||
-    b!.x + b!.width <= a!.x ||
-    a!.y + a!.height <= b!.y ||
-    b!.y + b!.height <= a!.y;
-  expect(
-    disjoint,
-    `the sticky ProfilePanel covers the layers ${where}: scene=${JSON.stringify(a)} panel=${JSON.stringify(b)}`
-  ).toBe(true);
+async function expectNodeMapGone(page: Page) {
+  await expect(page.getByText(/INITIAL PROFILE/i)).toHaveCount(0);
+  // The node map's own pill labels, which were a separate vertical menu.
+  for (const pill of ["OPERATIONS", "AUTOMATION", "REVENUE", "DATA"]) {
+    await expect(page.getByText(pill, { exact: true })).toHaveCount(0);
+  }
 }
 
 /** Inline opacity of a projected topic label, written by the render path. */
@@ -205,16 +192,16 @@ test.describe("diagnostic scene through the real journey", () => {
     // The first topic reads as active; a later one is present but quiet.
     await expect.poll(() => labelOpacity(page, 0), { timeout: 4000 }).toBe(1);
     expect(await labelOpacity(page, 3)).toBeLessThan(1);
+    // One composition, not the scene plus the old card.
+    await expectNodeMapGone(page);
+    await expect(page.locator("canvas")).toHaveCount(1);
     // The layers are pinned below the sticky panel and must stay clear of
     // it wherever the page is scrolled.
     expect(await sameCanvas(), "the scene remounted between the entry sphere into the topic layers").toBe(true);
-    await expectPanelClearOfScene(page, "at the top of the form");
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(500);
-    await expectPanelClearOfScene(page, "scrolled to the bottom of the form");
     await page.evaluate(() => window.scrollTo(0, Math.round(document.body.scrollHeight / 2)));
     await page.waitForTimeout(500);
-    await expectPanelClearOfScene(page, "scrolled half way down the form");
     await shot(page, "02-layers-step1");
 
     // The active layer tracks the real step, not a decorative counter.
@@ -225,10 +212,8 @@ test.describe("diagnostic scene through the real journey", () => {
     expect(await labelOpacity(page, 0)).toBeLessThan(1);
     // The panel grows as answers accumulate, so the band is re-measured
     // per step rather than sampled once.
-    await expectPanelClearOfScene(page, "on step 2");
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(500);
-    await expectPanelClearOfScene(page, "on step 2, scrolled to the bottom");
     await shot(page, "03-layers-step2");
     // The layers sit beneath the `sticky` ProfilePanel, in the lower part
     // of the right column, so this is where they are seen in full.
@@ -413,10 +398,8 @@ for (const width of [1024, 1280, 1440]) {
     await expect(scene(page)).toHaveCount(1);
     // Wherever the layers are actually drawn, they must clear the panel.
     if (await scene(page).first().isVisible()) {
-      await expectPanelClearOfScene(page, `on the form at ${width}px`);
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(400);
-      await expectPanelClearOfScene(page, `on the form at ${width}px, scrolled`);
     }
     await shot(page, `w${width}-2-layers`);
 
@@ -451,3 +434,35 @@ for (const width of [1024, 1280, 1440]) {
     await shot(page, `w${width}-5-profile`);
   });
 }
+
+test("the composition carries the real profile, not a decorative stand-in", async ({ page }) => {
+  /*
+   * The node-map card is gone, so the facts and signals it showed have to
+   * live inside the one composition — otherwise this would be a deletion
+   * rather than a replacement. These are the visitor's own answers and
+   * `buildSignals`' own output, unchanged.
+   */
+  test.setTimeout(90_000);
+  await page.setViewportSize(DESKTOP);
+  await page.goto("/diagnostic");
+  await page.getByRole("button", { name: /Start|Begin/i }).first().click();
+  await expect(page.getByText("01 / 06")).toBeVisible();
+
+  // Nothing answered yet: the readout says so rather than inventing data.
+  await expect(page.getByText(/Your profile will build here as you answer/i)).toBeVisible();
+  await expectNodeMapGone(page);
+
+  await fillStep1(page, "Composition QA BV");
+  // The industry and team size the visitor just chose appear in the
+  // composition, in the same column as the scene.
+  const industry = await page.locator("select").first().inputValue();
+  await expect.poll(async () => (await page.locator("body").innerText()).includes(industry), { timeout: 6000 }).toBe(true);
+
+  await page.getByRole("button", { name: /^Continue$/ }).click();
+  await expect(page.getByText("02 / 06")).toBeVisible();
+  // Still one canvas, still one composition.
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.getByText(/Preliminary Signals/i)).toBeVisible();
+
+  await shot(page, "11-composition-with-profile");
+});

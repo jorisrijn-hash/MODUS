@@ -1188,3 +1188,77 @@ Screenshots: `e2e-screens/auth-{sign-in,sign-up}-{desktop,mobile}.png`.
   run against the **development** instance; it was disabled in
   production. The development instance should be brought in line, or
   local captures will keep showing a provider production does not offer.
+
+## 23. Diagnostic graphic (task 3) — one integrated composition
+
+### What was wrong
+
+The form screen carried two graphics. A bordered "MODUS / Initial
+Profile" card held a static node map and the facts; a second WebGL scene
+sat elsewhere on the page. The node map never responded to anything, and
+the topic labels on the scene were filled pills pinned to layer
+centroids, which lined up into what read as a vertical menu floating over
+the scene rather than annotation of it.
+
+### What it is now
+
+**One composition**, mounted once at shell level so its points persist
+across the whole journey:
+
+- The scene carries the state — entry sphere → answer-driven topic
+  structure → review stack → acknowledged-result closure.
+- The profile is read out directly beneath it, in the same column, with
+  no card, no second header and no second mark.
+- The node-map card is **removed, not relocated**. `ProfilePanel` and its
+  `SystemMap` are no longer rendered.
+
+**Topic names are annotations.** Each label is placed against its own
+layer, just beyond that layer's rightmost projected point, with a short
+leader line back to it. They sit at different offsets rather than
+stacking into a column, the active topic is in ink and the rest are
+quiet, and none of them has a pill.
+
+**Nothing is invented.** The facts are the visitor's own answers and the
+signals come from `buildSignals` — the same scoring the rest of the
+diagnostic uses, unchanged from the panel this replaces. With nothing
+answered the readout says so rather than showing placeholder data.
+
+The composition is `sticky top-24` on the form screen, so the profile
+stays with the visitor through a long form — which is what the old
+panel's own `sticky top-24` provided and what replacing it must not lose.
+`position: fixed` is unavailable here: `PageTransition` leaves
+`filter: blur(0px)` on an ancestor, and a filter creates a containing
+block for fixed descendants.
+
+### Accessibility correction
+
+The scene wrapper was `aria-hidden`, which was right when it held only a
+decorative canvas. It now also carries the profile readout — real
+information about the visitor's own answers — so the wrapper is exposed
+and the canvas, its labels and the fallback mark themselves hidden
+inside `DiagnosticScene`. The readout's own controls re-enable pointer
+events the decorative layer disables.
+
+### A vacuous test this exposed
+
+The scene spec asserted that the scene stayed clear of the profile panel,
+via `div.rounded-md.border`. Once the panel was deleted that locator
+still matched one unrelated element, so the check kept passing while
+asserting nothing. It is replaced by `expectNodeMapGone`, which asserts
+the card and its pill labels are absent — the claim that actually
+matters now — plus a check that exactly one canvas is mounted.
+
+### Verified
+
+- 7 scene tests pass, including the stage journey, submission failure
+  holding the review stack, reduced motion, mount thresholds, and the
+  1024 / 1280 / 1440 matrix.
+- A new test asserts the composition carries the **real** profile: the
+  empty-state line before anything is answered, then the industry the
+  visitor actually selected appearing in the composition, the signals
+  section present, and still exactly one canvas.
+- Full suites: **71 unit, 79 e2e passed, 3 skipped** (the gated
+  account-switch spec).
+
+Screenshots: `e2e-screens/11-composition-with-profile.png`,
+`w{1024,1280,1440}-2-layers.png`.
