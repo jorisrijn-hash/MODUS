@@ -1629,15 +1629,12 @@ re-run.
    Raised to 120s. The clipping property itself was then measured
    directly, with the result in the table above.
 
-### The two unexplained responsive failures — still unexplained
+### The two responsive failures — a measured mechanism, still not proof
 
-`responsive.spec.ts` → `diagnostic @ tablet` and `home @ largeDesktop`
-failed once in a full run and have not recurred: they passed in
-isolation, in the next full run, and at `--repeat-each=3` (48/48). **No
-cause has been established.** The artefacts were overwritten before the
-failure output was read, which is exactly the mistake that also cost the
-morph recording. If either recurs, its logs, trace and screenshots are to
-be copied out of `test-results/` **before** anything else runs.
+See §32. A specific, measured condition has since been found that
+produces exactly this symptom, but it is **not** established that it
+caused those two failures, because their artefacts were lost before
+being read.
 
 ### Not verifiable from here
 
@@ -1662,3 +1659,67 @@ The verification run created a second clearly-labelled synthetic record,
 originals, untouched and still unowned, plus 2 synthetic**. Both are
 identifiable by the company name `SYNTHETIC TEST RECORD` or the
 `synthetic-test+` email prefix, and can be removed whenever you want.
+
+## 32. Suite runtime — measured external cause
+
+### What was seen
+
+After the deployment the local suite stopped completing: two full-suite
+attempts were killed at a 30-minute limit without producing a result. Run
+in chunks, the numbers were:
+
+| Spec | Time | Result |
+|---|---|---|
+| `smoke` | 22s | 11 passed |
+| `loader` | 8s | 3 passed |
+| `persistence` | 1s | 3 passed |
+| **`responsive`** | **1020s** | 15 passed |
+
+`responsive.spec.ts` at 68s per test, against 48 tests in 2.5 minutes
+(~3s each) earlier the same day. Nothing in those commits touches that
+spec.
+
+### Two hypotheses, both tested
+
+1. **`networkidle` not settling**, since `IdentityProvider` now loads
+   Clerk on every route — the exact cause of the production auth-spec
+   failure. **Disproven by measurement:** `/`, `/diagnostic` and
+   `/private/login` all reach networkidle in ~1s.
+2. **The full-height viewport resize and `fullPage` screenshot.** Also
+   **not** the cause: the resize is 3–7ms and the screenshot 0.1–2.1s,
+   even for an 11,219px page.
+
+Individually, the same responsive tests run in **3–7 seconds each**. The
+cost only appears over a long run.
+
+### What it actually is
+
+The machine is under heavy load from **unrelated applications**:
+
+```
+ChatGPT / Codex Framework   52.6% + 24.2% + 6.7%  CPU
+WindowServer                45.5%                 CPU
+VS Code helpers             ~23%                  CPU
+load average                4.77
+memory                      73% free
+```
+
+The suite runs `workers: 1` because its pages hold WebGL contexts. A
+single-worker, GPU-backed suite competing with ~80% sustained external
+CPU use degrades exactly this way: fine per test, ruinous over a run.
+Memory is not involved.
+
+### What this does and does not establish
+
+**Established:** the current slowdown has an external cause, measured,
+not in the application or the specs. Four orphaned headless browsers from
+runs I had killed were also cleaned up.
+
+**Not established:** that this same condition caused the two earlier
+`responsive` failures. That remains **unexplained** — their logs, trace
+and screenshots were overwritten before being read, so the actual failure
+messages are gone. A plausible, measured mechanism is not the same as a
+diagnosis, and this one is recorded as the former.
+
+The instruction stands: if either recurs, copy its logs, trace and
+screenshots out of `test-results/` **before** anything else runs.
