@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth/session";
-import { LoginForm } from "@/components/admin/LoginForm";
 
-export const metadata: Metadata = {
-  title: "MODUS Private Access",
-  robots: { index: false, follow: false },
-};
+export const metadata = { robots: { index: false, follow: false } };
 
-export default async function PrivateLoginPage() {
-  if (await isAuthenticated()) redirect("/private");
-  return <LoginForm />;
+/**
+ * The MODUS admin password login is gone. `/private` is gated on Clerk
+ * identity plus an `AdminMember` row, and keeping a second way in would
+ * have been exactly the password bypass this replaced.
+ *
+ * The path is kept as a redirect rather than deleted so existing
+ * bookmarks and links land on the canonical Clerk sign-in instead of a
+ * 404. `LoginForm` and `/api/private/login` are deleted outright.
+ */
+export default function PrivateLoginPage() {
+  redirect(`/sign-in?redirect_url=${encodeURIComponent("/private")}`);
 }

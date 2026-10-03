@@ -1,5 +1,7 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
+
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -25,10 +27,12 @@ export function AdminShell({
   const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  // Clerk owns the session now, so signing out is Clerk's to perform —
+  // clearing a MODUS cookie would leave the Clerk session intact and the
+  // admin still signed in.
+  const { signOut } = useClerk();
   async function handleLogout() {
-    await fetch("/api/private/logout", { method: "POST" });
-    router.push("/private/login");
-    router.refresh();
+    await signOut({ redirectUrl: "/" });
   }
 
   return (

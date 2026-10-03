@@ -4,6 +4,7 @@ import { LanguagePrompt } from "@/components/language/LanguagePrompt";
 import { LenisProvider } from "@/lib/motion/LenisProvider";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SplitRevealProvider } from "@/components/motion/SplitRevealProvider";
+import { AdminInboxLauncherGate } from "@/components/auth/AdminInboxLauncher";
 
 /**
  * The marketing shell — Checkpoint 3. Every public marketing route lives
@@ -84,6 +85,9 @@ export default function MarketingLayout({
         <PageTransition>{children}</PageTransition>
         <Chatbot />
         <LanguagePrompt />
+        {/* Offers the admin inbox in a second tab once the server has
+            confirmed membership; nothing at all for everyone else. */}
+        <AdminInboxLauncherGate />
       </LenisProvider>
     </>
   );

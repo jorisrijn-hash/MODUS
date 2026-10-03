@@ -707,7 +707,6 @@ export const nl: Dictionary = {
       ctaPrimary: "Start een Diagnose",
       ctaSecondary: "Bekijk Hoe Het Werkt",
       scrollCue: "Scroll om te ontdekken",
-      sceneCue: "Sleep om te verkennen",
       sceneBubbles: [
         "Frictie gedetecteerd",
         "Overdracht in kaart",

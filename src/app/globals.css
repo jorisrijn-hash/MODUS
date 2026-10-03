@@ -552,3 +552,131 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------------
+ * Clerk auth screens
+ *
+ * Clerk renders its card inside its own markup, so this is written
+ * against its documented `cl-` class names rather than reached from the
+ * page. It lives here, in CSS, rather than as Tailwind classes passed
+ * through `appearance.elements`, because those classes sit in a `.ts`
+ * file: Tailwind generated only the ones that happened to be used
+ * elsewhere in the project, so novel utilities such as `!bg-modus` were
+ * never emitted and the primary action rendered with a transparent
+ * background and white text — an invisible button that still passed every
+ * assertion about being present and clickable.
+ *
+ * Writing it here also means the real tokens are used, so these follow
+ * the theme instead of duplicating hex values across the boundary.
+ * ------------------------------------------------------------------- */
+/*
+ * Aliases, because Clerk defines its OWN `--accent` on its subtree.
+ *
+ * `appearance.variables.colorPrimary` injects `--accent: #1E3B2E` — a hex
+ * string — which shadows the MODUS token of the same name. Every
+ * `rgb(var(--accent))` below then resolved to `rgb(#1E3B2E)`, which is
+ * invalid, so the declaration was dropped and the primary button rendered
+ * with a transparent background and white text. The border and text
+ * colour in the same rule applied normally, which is what made it look
+ * like a cascade problem rather than a variable collision.
+ *
+ * These are computed on :root, where the MODUS tokens are intact, and
+ * inherited into Clerk's subtree as plain values. They still follow the
+ * theme, because `var()` resolves against whichever `--accent` :root ends
+ * up with.
+ */
+:root {
+  --modus-accent: var(--accent);
+  --modus-accent-light: var(--accent-light);
+  --modus-accent-foreground: var(--accent-foreground);
+  --modus-canvas: var(--canvas);
+  --modus-canvas-secondary: var(--canvas-secondary);
+  --modus-surface: var(--surface);
+  --modus-line: var(--line);
+  --modus-text: var(--text-primary);
+  --modus-danger: var(--danger);
+}
+
+.cl-formButtonPrimary {
+  background-color: rgb(var(--modus-accent)) !important;
+  color: rgb(var(--modus-accent-foreground)) !important;
+  border: 1px solid transparent !important;
+  border-radius: 9999px !important;
+  min-height: 2.75rem !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background-color: rgb(var(--modus-accent-light)) !important;
+}
+
+/* Keyboard focus must be visible on the warm ground, and must not be the
+   browser default quietly suppressed. */
+.cl-formButtonPrimary:focus-visible,
+.cl-socialButtonsBlockButton:focus-visible,
+.cl-formFieldInput:focus-visible {
+  outline: 2px solid rgb(var(--modus-accent)) !important;
+  outline-offset: 2px !important;
+}
+
+.cl-socialButtonsBlockButton {
+  border: 1px solid rgb(var(--modus-line)) !important;
+  border-radius: 9999px !important;
+  min-height: 2.75rem !important;
+  background-color: rgb(var(--modus-canvas)) !important;
+  color: rgb(var(--modus-text)) !important;
+  text-transform: none !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.cl-socialButtonsBlockButton:hover {
+  background-color: rgb(var(--modus-canvas-secondary)) !important;
+}
+
+.cl-formFieldInput {
+  background-color: rgb(var(--modus-canvas)) !important;
+  border: 1px solid rgb(var(--modus-line)) !important;
+  border-radius: 0.5rem !important;
+  min-height: 2.75rem !important;
+  color: rgb(var(--modus-text)) !important;
+}
+
+.cl-formFieldInput[data-invalid="true"],
+.cl-formFieldInput__error {
+  border-color: rgb(var(--modus-danger)) !important;
+}
+
+.cl-formFieldErrorText,
+.cl-formFieldWarningText {
+  font-size: 12.5px !important;
+}
+
+.cl-formFieldErrorText {
+  color: rgb(var(--modus-danger)) !important;
+}
+
+/* The page supplies the surface; the card should not float above it. */
+.cl-cardBox,
+.cl-card {
+  box-shadow: none !important;
+  background-color: rgb(var(--modus-surface)) !important;
+}
+
+.cl-cardBox {
+  border: 1px solid rgb(var(--modus-line)) !important;
+  border-radius: 0.75rem !important;
+}
+
+.cl-footer {
+  background-color: rgb(var(--modus-surface)) !important;
+  border-top: 1px solid rgb(var(--modus-line)) !important;
+}
+
+.cl-spinner {
+  color: rgb(var(--modus-accent)) !important;
+}

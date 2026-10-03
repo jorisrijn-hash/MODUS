@@ -140,7 +140,6 @@ export function Hero() {
             <HeroScene
               className="h-[280px] w-full lg:h-[calc(400*var(--sf))]"
               bubbles={t.sceneBubbles}
-              cue={t.sceneCue}
               bubblesNote={t.sceneBubblesNote}
             />
           </div>

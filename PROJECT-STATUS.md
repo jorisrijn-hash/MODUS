@@ -62,15 +62,15 @@ Configuration is not evidence of working behaviour.
 - **Application-enforced MFA is intentionally deferred** (user decision, 2 Oct 2026). `ADMIN_MFA_REQUIRED` defaults to false. The enforcement path is retained and tested so enabling it is a one-line change. Google two-step verification protects the Google login only and is **not** application-enforced MFA. This is a recorded limitation, never to be reported as implemented or as verified.
 - **No admin exists yet.** No production Clerk identity has been verified or granted. Signup grants nothing.
 - **Preview shares the production database** per the latest Vercel screenshot. Do not run destructive fixtures or cleanup against it.
-- **The Clerk admin path is not wired to any route.** The helpers and the
-  `AdminMember` table exist and are unit-tested, but `/private` is still
-  guarded by the legacy password session, so granting a Clerk user admin
-  membership currently grants access to nothing. See §11 — this changes
-  what the post-deploy admin steps can verify.
+- ~~**The Clerk admin path is not wired to any route.**~~ **Resolved** —
+  `/private` and every private API now run on Clerk plus `AdminMember`;
+  the password mechanism is deleted. See §11.
+- **GitHub sign-in is offered but unconfigured** on the auth screens. A
+  Clerk dashboard setting, not code — disable it in Clerk Production or it
+  presents a broken path. See §14.
 - **Live notification retry is unverified** — with no mail provider the
   worker skips rather than attempts, so no real failure path runs. Backoff
   and give-up bounds are covered at unit level only. See §10.
-- **GitHub sign-in is unconfirmed** — cloned as enabled but showing "Setup required". Should be disabled until real credentials exist, rather than left half-configured.
 - **Diagnostic graphic — all stages active and verified through the real
   journey.** See §9 for the evidence and the two remaining limitations.
 
@@ -426,52 +426,246 @@ with no mail provider configured the worker skips rather than attempts, so
 no real failure path runs. This is the same gap as the unconfirmed
 delivery receipt at `hello@withmodus.co`.
 
-## 11. The Clerk admin path is not wired to any route
+## 11. /private is now wired to Clerk
 
-Found while adding the admin coverage, and it changes what the post-deploy
-admin steps mean.
+The admin surface was guarded by a shared password in an encrypted
+cookie, while `requireAdminSession`, `isAdmin` and `AdminMember` sat
+implemented, unit-tested and uncalled. That is closed: every admin page,
+API and mutation is now gated on Clerk identity plus a current,
+server-controlled `AdminMember` row, re-read per request.
 
-`requireAdminSession`, `isAdmin`, `requireAdmin` and the `AdminMember`
-table are implemented, and `src/lib/auth/__tests__/authorize.test.ts`
-covers them properly — 401 for an anonymous caller, 403 for a signed-in
-account with no membership, admitted for a current membership, and only
-ever matching an **unrevoked** row. `scripts/grant-admin.mjs` writes those
-rows, and the Supabase RLS checks prove the table is not readable by an
-ordinary account.
+### Code complete
 
-**But no route calls any of them.** The only admin surface, `/private`, is
-still guarded by the legacy password session (`requireAuth` /
-`isAuthenticated`). A grep across `src/app`, `src/components` and
-`src/middleware` finds no caller.
+| Surface | Before | Now |
+|---|---|---|
+| `/private` and its pages | `isAuthenticated()` session cookie | `requireAdminSession()`, redirect to `/sign-in` |
+| `/api/private/*` | `requireAuth()` → session cookie | `requireAuth()` → Clerk + `AdminMember` |
+| `/private/login` page | Password form | Redirect to `/sign-in` |
+| `/api/private/login` | Verified a password | **Deleted** |
+| `/api/private/logout` | Cleared the session cookie | **Deleted** — Clerk owns sign-out |
+| `src/lib/auth/session.ts` | Iron-session | **Deleted** |
+| `src/lib/auth/rateLimit.ts` | Login-attempt throttling | **Deleted** |
+| `LoginForm.tsx` | Password UI | **Deleted** |
 
-What this means for the deployment plan:
+Removed, not disabled: there is no second way in left to drift out of
+sync. The `LoginAttempt` table is left in place — dropping it is a
+migration and the rows are a record, not a credential.
 
-- Granting the MODUS Google account's production Clerk user id an
-  `AdminMember` row will write the row, and the row will be correct, but
-  **it will not grant access to anything**, because nothing enforces it.
-- "Test admin access" therefore cannot be done against the Clerk path
-  until `/private` is moved onto it. Signing in with Google will not open
-  the admin inbox; the admin password still will.
-- Admin MFA remains deferred, as agreed — and note it is deferred on a
-  path that is not yet carrying any traffic.
+The admin shell's Settings panel used to report Argon2id hashing, the
+session cookie and failed-login counts. Those described a door no longer
+on the building, so that panel now reports the authentication provider,
+that authorization is an `AdminMember` row re-read per request, that
+revocation applies on the next request, and — stated plainly rather than
+omitted — that multi-factor is **not enforced**.
 
-Wiring `/private` onto Clerk is a real change to how the admin signs in,
-so it is **not** done here. It is the recommended next step, and it is
-what the brief's "secure admin inbox" ultimately requires.
+### Verified
 
-### What is covered today
+`src/lib/auth/__tests__/privateRoutes.test.ts` drives the **real route
+handlers**, not the helpers in isolation:
 
-`e2e/private.spec.ts` now asserts the admin surface is closed without
-needing the password, which a routine run previously never checked
-(the one test that did was skipped by default):
+- Anonymous → **401**.
+- Ordinary signed-in account → **403**, with a body identical to the 401
+  so the surface cannot be probed to discover who holds admin.
+- Active admin → **200**.
+- Revoked admin → **403 on the very next request**, with no sign-out and
+  no cache to wait out.
+- Provider unconfigured → **401**: fails closed.
+- Private notes (`POST .../notes`) and the record detail and delete
+  routes → 403 for an ordinary account, 401 for anonymous.
 
-- `/private`, `/private/diagnostics`, `/private/pipeline` and
-  `/private/settings` each answer **307** to an anonymous visitor with a
-  `Location` of `/private/login`.
-- `/api/private/diagnostics`, `/api/private/overview` and
-  `/api/private/diagnostics/export` each answer **401**, and the body is
-  asserted to contain no submission fields — a 401 that still shipped rows
-  would be worse than a 500.
+`e2e/private.spec.ts` covers what a browser can assert without a secret,
+and now runs on every pass instead of being skipped: four admin pages
+each **307** to `/sign-in`, three private APIs each **401** with no
+submission fields in the body, `/private/login` redirects to Clerk, and
+`/api/private/login` returns **404** — the handler is gone.
 
-The skipped password test is left in place: it covers the mechanism that
-is actually wired, and it needs a real secret to run.
+The old `E2E_ADMIN_PASSWORD` test is deleted with the mechanism it tested.
+Driving a real Google sign-in from Playwright needs Clerk's test tooling
+and live credentials, so the signed-in cases are covered server-side as
+above. **The suite now has no skipped tests.**
+
+### Still requires deployment to verify
+
+- Production Clerk token acceptance through PostgREST. The genuine
+  evidence to date used the **development** issuer.
+- The production Clerk user id for `withmodus@gmail.com`, which does not
+  exist until the first production Google sign-in. It must be read from
+  the production instance and granted explicitly via
+  `scripts/grant-admin.mjs`. **The development user id must not be
+  reused.** Access is never granted by email match, by Google sign-in, by
+  being first to sign up, or by anything the client supplies.
+- MFA remains **intentionally deferred** by your decision. All other
+  membership and authorization protections are retained.
+
+## 12. Admin opens in a second tab
+
+After sign-in, the MODUS tab stays where it is and the admin inbox opens
+beside it — for administrators only, decided by the server.
+
+`GET /api/admin/status` answers only about the caller's own verified
+session. It takes no user id, so it cannot be asked about anyone else,
+and "not signed in" and "signed in without membership" return the same
+`{ admin: false }`.
+
+`AdminInboxLauncher` (mounted in the marketing layout) probes once, and
+on `{ admin: true }` opens `/private` with `window.open`. Specifically:
+
+- **Popup blocking is expected**, not an edge case: a `window.open` that
+  is not tied to a user gesture is routinely blocked, which is exactly
+  the case straight after an OAuth redirect. When blocked, a dismissible
+  **"Open admin inbox"** link is shown instead — a real anchor, so the
+  click is a gesture and always opens.
+- **No repeat tabs.** The outcome is recorded per account in
+  `sessionStorage`, so a refresh or a later navigation does not open a
+  second tab. If storage throws, the attempt is treated as already
+  handled rather than retried.
+- **Never from inside `/private`**, which would spawn a tab per load.
+- **Ordinary users and signed-out visitors** get nothing; one cached
+  probe, then silence.
+- **The tab grants nothing.** `/private` re-checks identity and
+  membership on every request, so a tab opened by any means still lands
+  on sign-in unless the membership is real and current.
+
+## 13. The live /private error — diagnosed
+
+**Not caused by the unpushed work.** The deployed commit is `611be43`;
+HEAD is 17 commits ahead and nothing has been pushed.
+
+The actual exception, reproduced by checking out `611be43` into a
+worktree and running it with no `SESSION_SECRET`:
+
+```
+⨯ Error: SESSION_SECRET is missing or too short. Set a 32+ byte secret in .env
+    at secret (src/lib/auth/session.ts:34:11)
+    at sessionOptions (src/lib/auth/session.ts:43:15)
+    at getSession (src/lib/auth/session.ts:56:51)
+    at async isAuthenticated (src/lib/auth/session.ts:60:19)
+    at async PrivateAppLayout (src/app/private/(app)/layout.tsx:12:9)
+```
+
+Live behaviour matches that signature exactly:
+
+| Route | Live status |
+|---|---|
+| `/` | 200 |
+| `/diagnostic` | 200 |
+| `/private` | **500** |
+| `/private/login` | **500** |
+| `/api/private/overview` | **500** |
+
+`/api/private/overview` is the tell: it is built to answer **401** to an
+anonymous caller and instead throws, because `requireAuth()` →
+`isAuthenticated()` → `getSession()` raises before any authorization
+decision is reached. The public site is unaffected, which rules out a
+build or database-wide fault.
+
+**Honest limit:** the local digest is `385869121`, not the live
+`2989066277`. Digests are build-specific, so this confirms the code path
+and failure mode, not that specific production instance. Definitive
+confirmation needs the Vercel runtime log for that request — I am not
+authenticated to the Vercel CLI and this session cannot run the OAuth
+flow, so **please confirm from Vercel → Logs**, or simply check whether
+`SESSION_SECRET` is set in Production.
+
+**Either way this is already fixed at HEAD, twice over:** the guard
+`sessionSecretAvailable()` was added after the deployed commit, and the
+Clerk migration deletes `session.ts` entirely — `/private` no longer
+reads `SESSION_SECRET` at all. No fake-login bypass was introduced.
+
+## 14. Auth screens — styled and verified
+
+`/sign-in` and `/sign-up` were bare `<SignIn />` on a white flex
+container: Clerk's card, Clerk's typeface, Clerk's blue button. They now
+sit on the MODUS surface — warm ground `#D7D7D0`, the bare ink mark
+linking home, the serif display face, a cream card and a rounded MODUS
+green action.
+
+Asserted against the rendered page at **1440×900 and 390×844**, for both
+routes:
+
+- `body` background is exactly `rgb(215, 215, 208)`.
+- The bare mark renders and links home.
+- The `h1` resolves to the serif stack, so the font actually loaded.
+- The primary action computes to `rgb(30, 59, 46)` with white label text.
+- Keyboard focus produces a visible indicator, not a suppressed default.
+- The guest diagnostic stays reachable from the auth screen.
+
+Screenshots: `e2e-screens/auth-{sign-in,sign-up}-{desktop,mobile}.png`.
+
+### Two bugs the screenshots caught that the assertions did not
+
+1. **The primary button was invisible** — white label on a transparent
+   background. Clerk's `appearance.variables.colorPrimary` injects its own
+   `--accent` custom property onto its subtree, shadowing the MODUS token
+   of the same name, so `rgb(var(--accent))` resolved to `rgb(#1E3B2E)`,
+   which is invalid and was dropped. The border and text colour in the
+   same rule applied normally, which made it look like a cascade problem.
+   Fixed with `--modus-*` aliases computed on `:root`. A separate earlier
+   attempt failed for a different reason worth recording: Tailwind classes
+   passed through `appearance.elements` live in a `.ts` file, and only
+   those utilities already used elsewhere in the project were ever
+   emitted.
+2. **The consent banner covered the footer links**, so "run a diagnostic
+   as a guest" could not be clicked until consent was answered. The screen
+   now reserves space for the banner.
+
+### Not fixable from code
+
+**GitHub is still offered as a sign-in provider** on both screens while
+being unconfigured — it is a Clerk dashboard setting. It should be
+disabled in Clerk Production, or it will present a broken path to anyone
+who clicks it.
+
+## 15. Notifications and provider configuration
+
+### Code complete
+
+The three environment variable names in the code match what you reported
+saving: `FORM_NOTIFICATION_TO` (recipient, defaulting to
+`hello@withmodus.co`), `RESEND_API_KEY` and `MAIL_FROM`. Mail is treated
+as configured only when **both** `RESEND_API_KEY` and `MAIL_FROM` are
+present.
+
+### Verified live, against the running app
+
+- `CRON_SECRET` gates the scheduled worker **only**. The submission path
+  imports `dispatchPending` directly and calls it inside `after()` — an
+  in-process call that never reaches the secret check.
+- Unauthorized worker requests rejected: no credentials **401**, wrong
+  secret **401**, bare `x-vercel-cron` header **401**. Correct secret 200.
+- Duplicate prevention: same `Idempotency-Key` returned the same record id
+  with `deduplicated: true`; one diagnostic row, one outbox row; a second
+  outbox row with the same `dedupeKey` rejected with Prisma `P2002` on
+  `["dedupeKey"]`.
+
+### Not verified, and cannot be here
+
+- **Live retry and backoff.** With no mail provider configured locally the
+  worker skips rather than attempts, so no real failure path runs. Covered
+  at unit level only (retention, backoff growth, give-up bound, no
+  resurrection, no double send).
+- **Actual inbox receipt at `hello@withmodus.co`.**
+- **Scheduled execution on Vercel.**
+- **Whether `CRON_SECRET` is saved in Vercel Production.** I cannot read
+  Vercel's environment from here. Please confirm it is **present** — do
+  not send the value.
+
+Per your instruction, no production submission or test email has been
+created. Both need an explicit test arrangement from you.
+
+## 16. Database safety — re-verified
+
+- Local commands target `localhost:5432/modus_dev`; the production
+  connection strings remain isolated in `.env.supabase.local`, loaded
+  explicitly by the Supabase scripts. Verified by inspecting each file's
+  host without printing credentials.
+- Against production, read-only: **4 migrations found, schema up to
+  date.**
+- `public._prisma_migrations`: RLS **enabled**, **0 policies** (RLS on
+  with no policy is deny-all), and **no grants** to `anon`,
+  `authenticated` or `public`. Denial proven by actually attempting a read
+  under each browser role — both were refused. `prisma migrate status`
+  still works, because it connects as the table owner and
+  `FORCE ROW LEVEL SECURITY` is deliberately not set.
+- The four original diagnostics and the separately recorded orphaned rows
+  are untouched.

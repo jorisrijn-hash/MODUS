@@ -1,12 +1,13 @@
-import { getSession } from "@/lib/auth/session";
-import { lastSuccessfulLogin, recentFailedLoginCount } from "@/lib/auth/rateLimit";
+import { requireAdminSession } from "@/lib/auth/clerk";
+import { adminDisplayName } from "@/lib/auth/adminIdentity";
 import { prisma } from "@/lib/db";
 
 export default async function SettingsPage() {
-  const session = await getSession();
-  const [lastLogin, failedCount, dbCheck] = await Promise.all([
-    lastSuccessfulLogin(),
-    recentFailedLoginCount(24),
+  // The layout already gates this route; re-reading the membership here
+  // keeps the page correct if it is ever rendered outside that layout.
+  const { userId } = await requireAdminSession();
+  const [admin, dbCheck] = await Promise.all([
+    adminDisplayName(userId),
     prisma.diagnostic.count().then(() => true).catch(() => false),
   ]);
 
@@ -17,21 +18,31 @@ export default async function SettingsPage() {
 
       <div className="mt-8 space-y-8">
         <SettingsSection title="Account">
-          <Row label="Admin user" value={session.username ?? "Not set"} />
+          <Row label="Admin user" value={admin} />
         </SettingsSection>
 
-        <SettingsSection title="Session">
-          <Row label="Status" value="Active" tone="modus" />
-          <Row
-            label="Last successful login"
-            value={lastLogin ? new Date(lastLogin.createdAt).toLocaleString("en-GB") : "This session"}
-          />
+        {/*
+          * These described the shared-password login — Argon2id hashing,
+          * the session cookie, failed-attempt counts from the
+          * LoginAttempt table. That mechanism no longer guards anything,
+          * so reporting its properties here would have been a security
+          * panel describing a door that is not on the building.
+          */}
+        <SettingsSection title="Access">
+          <Row label="Authentication" value="Clerk" tone="modus" />
+          <Row label="Authorization" value="AdminMember row, re-read per request" />
+          <Row label="Revocation" value="Takes effect on the next request" />
         </SettingsSection>
 
         <SettingsSection title="Security">
-          <Row label="Failed login attempts (24h)" value={String(failedCount)} tone={failedCount > 0 ? "signal" : undefined} />
-          <Row label="Password hashing" value="Argon2id" />
-          <Row label="Session cookie" value="HttpOnly · SameSite=Lax" />
+          {/* Stated plainly rather than omitted: an admin reading this
+              panel should not have to infer what is not enforced. */}
+          <Row
+            label="Multi-factor"
+            value={process.env.ADMIN_MFA_REQUIRED === "true" ? "Required" : "Not enforced"}
+            tone={process.env.ADMIN_MFA_REQUIRED === "true" ? "modus" : "signal"}
+          />
+          <Row label="Password sign-in" value="Removed" />
         </SettingsSection>
 
         <SettingsSection title="System">

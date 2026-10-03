@@ -729,7 +729,6 @@ export const en = {
       ctaPrimary: "Run a Diagnostic",
       ctaSecondary: "See How It Works",
       scrollCue: "Scroll to explore",
-      sceneCue: "Drag to explore",
       sceneBubbles: [
         "Friction detected",
         "Handoff mapped",

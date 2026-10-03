@@ -104,14 +104,11 @@ function webglAvailable(): boolean {
 export function HeroScene({
   className = "",
   bubbles = [],
-  cue,
   bubblesNote,
 }: {
   className?: string;
   /** Short process messages shown one at a time over the scene. */
   bubbles?: readonly string[];
-  /** Quiet interaction hint, e.g. "Drag to explore". */
-  cue?: string;
   /** One static sentence explaining that the bubbles are illustrative. */
   bubblesNote?: string;
 }) {
@@ -697,17 +694,6 @@ export function HeroScene({
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-modus" />
         <span ref={bubbleTextRef} />
       </div>
-
-      {/* Quiet, accurate interaction cue. The scene really does respond to
-          dragging, so this is what it says — and it is hidden on coarse
-          pointers, where there is no drag-to-rotate affordance to hint at. */}
-      {cue ? (
-        <span // Sits on a translucent chip: at rest it was printing straight
-          // over the point cloud and the dots cut through the letterforms.
-          className="pointer-events-none absolute bottom-0 right-0 z-20 hidden rounded-full bg-paper/75 px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted backdrop-blur-[2px] md:[@media(hover:hover)]:block">
-          {cue}
-        </span>
-      ) : null}
 
       {/* The canvas is decorative; this is the accessible equivalent. It is
           a static description, not a live region — the signal labels must
