@@ -109,6 +109,37 @@ protects the data. The **secret / service-role** key is a different key and
 must never be put in a `NEXT_PUBLIC_` variable. This project does not use
 it at all.
 
+## 3c. Scheduled notification sweep (`vercel.json`)
+
+`vercel.json` registers one cron entry:
+
+| Field | Value |
+|---|---|
+| `path` | `/api/cron/notifications` |
+| `schedule` | `0 7 * * *` (daily, 07:00 UTC) |
+
+**Why daily, and why it is only a sweep.** Prompt delivery happens inline
+after each submission, through `after()`, which calls `dispatchPending`
+as a direct function call once the response has been sent. This schedule
+only catches what that inline attempt failed to deliver. Daily is the
+maximum frequency Vercel's Hobby plan allows, which is why the design
+does not depend on it for timely delivery.
+
+**This explanation lives here, not in `vercel.json`.** That file is
+validated against a strict schema which rejects unknown properties: a
+`comment` key inside the cron entry failed the build outright with
+
+```
+Error: Invalid vercel.json - `crons[0]` should NOT have additional property `comment`. Please remove it.
+```
+
+Only `path` and `schedule` belong in a cron entry. Add no other keys,
+including comments.
+
+The endpoint is authenticated with `CRON_SECRET` and rejects a bare
+`x-vercel-cron` header — see §3 for the variable and `PROJECT-STATUS.md`
+§10 for the verification.
+
 ## 4. Site
 
 | Variable | Value |

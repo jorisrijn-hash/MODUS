@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "comment": "Daily retry sweep. Prompt delivery happens inline after each submission; this only catches what failed. Daily is the maximum frequency Vercel's Hobby plan allows.",
       "path": "/api/cron/notifications",
       "schedule": "0 7 * * *"
     }
