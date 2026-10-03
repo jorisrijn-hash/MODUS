@@ -1848,3 +1848,54 @@ Artefacts preserved to
 - **MFA remains intentionally deferred.**
 - No schema change, no migration, no dependency change, no auth-gate or
   RLS change.
+
+## 34. MODUS OS upgrade deployed — commit `828f12e`, 3 October 2026
+
+Pushed `a967af3..828f12e` and deployed.
+
+### Verified on production — read-only
+
+Within the stated limits: **no production submission was created, no test
+email sent, and no membership altered.** `scripts/verify-production.mjs`
+and `scripts/verify-admin-production.mjs` were deliberately **not run** —
+the first creates a diagnostic, the second revokes and restores
+membership.
+
+| Area | Result |
+|---|---|
+| Mobile Clerk navigation | **3/3** |
+| Platform demo + pricing (390px and 1440px) | **3/3** |
+| Protected-route rejection | **8/8** |
+| Account isolation, diagnostic graphic, auth morph | **18/18** |
+
+**32 production checks, 0 failures.**
+
+Specifically on the deployment:
+
+- The mobile menu offers `/sign-in` and `/sign-up` — the demo
+  `ClientUserButton` is gone, no `/app/login` link remains, and the guest
+  diagnostic stays reachable. Escape closes the menu and **returns focus
+  to the trigger**; navigating closes it.
+- The OS demo runs and issues **no non-GET request** to
+  `/api/private`, `/api/diagnostic` or `/api/cron`.
+- Pricing renders €200 / €700 / €1,000 with Core marked best value,
+  Essentials stating **"No MODUS OS access"**, the comparison table, the
+  bounded-scope note, and "Get your personal price" pointing at the
+  diagnostic.
+- `/private`, `/private/diagnostics`, `/private/pipeline` and
+  `/private/settings` each **307** to Clerk sign-in; the three private
+  APIs each **401** with no submission data in the body; the password
+  endpoint still has no handler and issues no session.
+
+Screenshots from the deployment: `e2e-screens/prod-demo-{desktop,mobile}
+.png`, `prod-pricing-{desktop,mobile}.png`, `prod-mobile-menu.png`.
+
+### Not verified here, by instruction
+
+- **Google sign-in and the admin interface on production** — the owner is
+  checking these manually. Production is not in test mode and admin
+  access is Google OAuth, which cannot be driven from here anyway.
+- Admin authorization on production was last verified in §18 with a real
+  session token; it was **not** re-run, because doing so alters
+  membership.
+- **MFA remains intentionally deferred.**
