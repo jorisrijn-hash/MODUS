@@ -1045,14 +1045,8 @@ never pulled out of the form by a late identity resolution.
 
 ### Remaining limitations
 
-- **OUTSTANDING: real signed-in account-switch testing.** The browser
-  tests run with Clerk **signed out**, so the live identity is `"guest"`.
-  Both directions of the rule are proven and the production checks pass,
-  but a real signed-in-to-signed-in switch is **not** covered by an
-  automated browser test. That needs Clerk's test tooling and two
-  isolated test accounts in the **development** instance — no production
-  accounts are to be created without authorization. The rule it would
-  exercise is covered at unit level, which is not the same thing.
+- **OUTSTANDING: real signed-in account-switch testing.** See §21 for
+  what is prepared and what is blocking it.
 - Tasks 2–5 of this brief (auth transition, diagnostic graphic, hero
   bubbles, `/private` redesign) are **not started**.
 
@@ -1085,3 +1079,53 @@ recovery prompt appeared to be missing after a draft was saved. Overlays
 are arbitrated through `useOverlaySlot`, and the consent banner holds the
 slot until answered — so the prompt was queued behind it, not lost. The
 test now answers consent first, as a visitor would.
+
+## 21. Clerk test tooling — prepared, one blocker outstanding
+
+The signed-in account-switch case still has no passing automated browser
+test. This is what exists and what is in the way.
+
+### Prepared
+
+- **`@clerk/testing` installed** (2.2.42).
+- **`scripts/create-test-users.mjs`** creates two isolated accounts,
+  `modus-test-a@playwright-qa.dev` and `modus-test-b@playwright-qa.dev`.
+  It **refuses to run against a production key** (`sk_live`) — test
+  accounts belong in the development instance, and no production account
+  is created without authorization. Passwords are generated, written to
+  the gitignored `.env.test.local`, and never printed. Both accounts were
+  created successfully in the development instance.
+- **`e2e/accountSwitch.spec.ts`** covers the three cases that only two
+  real sessions can reach: account B never sees account A's saved state;
+  an ordinary signed-in account gets no admin tab and is refused by
+  `/api/private/overview` with **403** on a direct API call, not merely a
+  hidden control; signing out clears private state and restores the
+  generic site.
+
+### Blocker
+
+`clerk.signIn()` does not establish a session against this development
+instance. It returns without throwing, and in the page
+`window.Clerk.loaded` is `true` while `Clerk.session` and `Clerk.user`
+stay `null` — only `__clerk_db_jwt` and `__client_uat` cookies are set.
+Tried, with no change: email as identifier, username as identifier,
+`clerkSetup()` with the keys explicitly placed in `process.env`, and
+`setupClerkTestingToken()` before signing in.
+
+The spec is therefore **gated behind `MODUS_CLERK_SWITCH_TEST=1`** and
+skips by default. It is deliberately not softened into something that
+passes: assertions that run as a signed-out visitor would prove nothing
+while looking green.
+
+### What this does and does not leave uncovered
+
+Covered without it: both directions of the scoping rule at unit level
+(12 tests), and in a real browser with a foreign reference present —
+including on production. Not covered: a genuine signed-in → signed-in
+transition, where Clerk's own session teardown and the identity change
+happen together.
+
+Likely next step: the instance requires a username, which suggests its
+sign-in strategies differ from the helper's default. Worth checking the
+development instance's enabled identifiers and first-factor strategies
+before spending further time in the test harness.
