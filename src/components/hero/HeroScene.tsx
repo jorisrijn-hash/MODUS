@@ -457,13 +457,39 @@ export function HeroScene({
       const px = (projected.x * 0.5 + 0.5) * w;
       const py = (-projected.y * 0.5 + 0.5) * h;
 
-      // Clamp inside the graphic with edge padding so a bubble never
-      // hangs off the canvas or drifts over the headline column.
+      /*
+       * Canvas space is NOT the bubble's space.
+       *
+       * The canvas is overscanned: `layout()` sizes it to the whole hero
+       * and offsets it with negative `left`/`top` so it is centred on the
+       * anchor. The bubble is `absolute left-0 top-0` inside the anchor.
+       * Positioning it with raw canvas pixels therefore placed it up to a
+       * full overscan to the right — measured on production at x≈1790 in
+       * a 1440px viewport, outside the hero's `overflow: hidden` box and
+       * so clipped away entirely on every cycle. The bubbles were running
+       * the whole time; they were off-screen.
+       *
+       * Adding the canvas's own offset converts into anchor space, and
+       * the clamp then uses the ANCHOR's box — the visible scene area —
+       * rather than the overscanned canvas, so a bubble can neither hang
+       * off the scene nor drift over the headline column.
+       */
+      const canvasLeft = parseFloat(canvas!.style.left) || 0;
+      const canvasTop = parseFloat(canvas!.style.top) || 0;
+      const hostW = anchor!.clientWidth;
+      const hostH = anchor!.clientHeight;
+
       const bw = bubbleEl.offsetWidth || 180;
       const bh = bubbleEl.offsetHeight || 34;
       const pad = 12;
-      const x = Math.min(Math.max(px + 14, pad), Math.max(pad, w - bw - pad));
-      const y = Math.min(Math.max(py - bh - 10, pad), Math.max(pad, h - bh - pad));
+      const x = Math.min(
+        Math.max(px + canvasLeft + 14, pad),
+        Math.max(pad, hostW - bw - pad)
+      );
+      const y = Math.min(
+        Math.max(py + canvasTop - bh - 10, pad),
+        Math.max(pad, hostH - bh - pad)
+      );
       bubbleEl.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
     }
 

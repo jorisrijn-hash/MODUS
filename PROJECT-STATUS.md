@@ -1262,3 +1262,60 @@ matters now — plus a check that exactly one canvas is mounted.
 
 Screenshots: `e2e-screens/11-composition-with-profile.png`,
 `w{1024,1280,1440}-2-layers.png`.
+
+## 24. Hero process bubbles (task 4) — they were never missing
+
+### What was actually happening
+
+The bubbles were reported missing on the deployed site. They were not
+missing. On production the element existed, the cycle ran, the label
+changed every pass, and `data-state` moved between `in` and `out` exactly
+on schedule.
+
+They were **positioned off-screen and clipped**.
+
+The bubble is positioned by projecting a node's live world position into
+**canvas pixels**. But the bubble is `absolute left-0 top-0` inside the
+**anchor**, and the canvas is deliberately overscanned — `layout()` sizes
+it to the whole hero and offsets it with negative `left`/`top` so it is
+centred on the anchor. The two spaces were never reconciled, so the
+bubble was placed up to a full overscan to the right. Measured on
+production:
+
+```
+box x=1790..1990   viewport width 1440   inViewport: false
+clipped by SECTION … overflow=hidden  box 0,0,1440x900
+```
+
+Every bubble, every cycle, placed outside the hero's `overflow: hidden`
+box. The clamp did not save it, because that clamped against the
+**canvas** width — which is the overscanned width, not the visible one.
+
+### The fix
+
+Add the canvas's own offset to convert into anchor space, and clamp
+against the **anchor's** box — the visible scene area — rather than the
+overscanned canvas. After the fix, locally:
+
+```
+x≈915..1083  y≈413..626   inViewport: true on every sample
+labels cycling: "Friction detected" → "Handoff mapped"
+```
+
+### Why nothing caught it
+
+Everything that was asserted remained true throughout: the element was
+present, animating, and changing text. Nothing asserted *where it ended
+up on screen*.
+
+`e2e/heroBubbles.spec.ts` now does, in four tests: a bubble becomes
+visible and is **inside the viewport** whenever it is; the label rotates
+rather than repeating one; a visible bubble never overlaps the headline;
+and reduced motion never runs the cycle.
+
+**The clipping test is discriminating, and was checked against both
+builds:** it **fails** when run against production, which still has the
+defect, and passes locally against the fix. A test that passed on both
+would have proved nothing.
+
+Screenshots: `e2e-screens/hero-bubble-{desktop,mobile}.png`.
