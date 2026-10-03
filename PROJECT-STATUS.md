@@ -1567,3 +1567,98 @@ exchanged in place rather than the page being replaced.
 
 The shared mark is asserted not to shift by more than 2px across the
 navigation: it is the fixed point the rest transitions around.
+
+## 31. Deployment — commit `c56a0d7`, 3 October 2026
+
+Seven commits pushed (`d29bb1a..c56a0d7`) and deployed.
+
+### Evidence preserved first — and it had already been lost once
+
+Playwright clears `test-results/` at the start of every run. The morph
+recording was **already gone** when I went to preserve it: a later
+full-suite run had deleted it. It was re-recorded and, with the key
+screenshots, copied to **`docs/evidence/`**, which no test run touches.
+`docs/evidence/README.md` lists what each artefact shows.
+
+### Verified on the deployment
+
+| Area | Result |
+|---|---|
+| Public and guest routes, `/legal`, `/privacypolicy`, sitemap, robots | 200 |
+| Auth transition (shared shell, Back, focus, reduced motion, readable form) | 6/6 |
+| Diagnostic graphic — one composition, annotations, node-map gone | 2/2 |
+| Hero bubbles | **16 visible samples, 0 outside the viewport** |
+| Account isolation (foreign reference, reload, Back, guest resume) | 7/7 |
+| Admin surface closed to anonymous callers | pages 307 → Clerk, APIs 401, no data in body |
+| Password endpoint | no handler, issues no session |
+| Worker rejects no-credentials / wrong secret / bare cron header | 401 / 401 / 401 |
+| Guest submission + safe retry | same id, `deduplicated: true` |
+| Admin allow / deny / revoke / restore | 4/4, revocation on the **next** request |
+| Notification | one outbox row, `status=SENT`, `attempts=1`, to `hello@withmodus.co` |
+
+**Hero bubbles, measured directly on production:** boxes at x≈915–925
+(right edge ≈1052–1074) in a 1440px viewport, every sample inside. Before
+the fix the same measurement on production read x=1790–1990, outside the
+hero's `overflow: hidden`. The defect is fixed on the deployment, not
+just locally.
+
+### Two production failures, both investigated before rerunning
+
+Artefacts for both were copied to
+`docs/evidence/production-failures-2026-10-03/` before anything was
+re-run.
+
+1. **`authTransition` — "the mark survives the navigation"**:
+   `Test timeout … exceeded` inside the `settle()` helper, which waited
+   for `networkidle`. Against the deployment that never settles — Clerk
+   holds connections open — so the test expired before reaching a single
+   assertion. `settle()` now waits for `domcontentloaded` and the form
+   Clerk actually renders. **A test fault, not a product fault.**
+
+2. **`heroBubbles` — "the label changes between cycles"**: it sampled
+   from Node with repeated `page.evaluate`, and each round trip over the
+   network made it miss the ~3s window in which a bubble is up. A probe
+   against production showed the rotation working — *Friction detected* →
+   *Workflow connected* → *Progress reviewed* — so the fault was in how
+   the test watched. It now records labels **inside the page** with a
+   MutationObserver, which cannot miss one however slow the connection.
+
+3. A third red appeared on the re-run and was **not** an assertion
+   failure: `Tearing down "context" exceeded the test timeout`. These
+   tests watch several ~5s cycles and the teardown overran a 60s budget.
+   Raised to 120s. The clipping property itself was then measured
+   directly, with the result in the table above.
+
+### The two unexplained responsive failures — still unexplained
+
+`responsive.spec.ts` → `diagnostic @ tablet` and `home @ largeDesktop`
+failed once in a full run and have not recurred: they passed in
+isolation, in the next full run, and at `--repeat-each=3` (48/48). **No
+cause has been established.** The artefacts were overwritten before the
+failure output was read, which is exactly the mistake that also cost the
+morph recording. If either recurs, its logs, trace and screenshots are to
+be copied out of `test-results/` **before** anything else runs.
+
+### Not verifiable from here
+
+- **Browser sign-in/sign-out on production.** The production instance is
+  not in test mode and admin access is Google OAuth, which cannot be
+  automated here. Browser sign-in, sign-out and account switching are
+  verified against the **development** instance with two isolated
+  accounts and real Clerk cookies (§26). On production, admin
+  authorization is verified with a real production session token:
+  anonymous 401, admin 200, revoked **403 on the next request**,
+  restored 200.
+- **The admin inbox and detail screens on production** are therefore not
+  captured in a browser. They are captured against the local build with a
+  real browser session in `docs/evidence/`.
+- **Inbox receipt** at `hello@withmodus.co` remains yours to confirm; the
+  provider reported `SENT`.
+
+### Synthetic records
+
+The verification run created a second clearly-labelled synthetic record,
+`cmuslquwf0000la04ai6t9yxu`. Production now holds **6 diagnostics: the 4
+originals, untouched and still unowned, plus 2 synthetic**. Both are
+identifiable by the company name `SYNTHETIC TEST RECORD` or the
+`synthetic-test+` email prefix, and can be removed whenever you want.

@@ -39,9 +39,16 @@ async function sample(page: Page) {
 
 test.describe("hero process bubbles", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
+  /*
+   * These watch several ~5s bubble cycles, so they are slow by nature.
+   * Against a deployment the context teardown then overran a 60s budget
+   * and reported a failure although every assertion had passed — the
+   * error was "Tearing down context exceeded the test timeout", not an
+   * assertion. The budget covers the sampling plus teardown now.
+   */
+  test.setTimeout(120_000);
 
   test("appear on screen, inside the hero, and are never clipped away", async ({ page }) => {
-    test.setTimeout(60_000);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
@@ -72,35 +79,56 @@ test.describe("hero process bubbles", () => {
   });
 
   test("the label changes between cycles rather than repeating one", async ({ page }) => {
-    test.setTimeout(60_000);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
     /*
-     * Condition-based rather than a fixed number of samples. A cycle is
-     * ~5s (3s hold, 2s gap) and the loop only advances while the scene is
-     * visible and the tab is active, so under load fewer cycles complete
-     * in a given wall-clock window — which made a fixed sample count fail
-     * intermittently in a full-suite run while passing in isolation.
-     * `pickBubble` cannot repeat an index consecutively, so two distinct
-     * labels is the right assertion; it just needs long enough to see
-     * two bubbles.
+     * Observed from INSIDE the page, not sampled from Node.
+     *
+     * Polling with repeated `page.evaluate` worked locally but failed
+     * against the deployment: each round trip costs network latency, so
+     * the sampler kept missing the ~3s window in which a bubble is
+     * actually up. A probe confirmed production rotates correctly —
+     * "Friction detected" → "Workflow connected" → "Progress reviewed" —
+     * so the fault was in how the test watched, not in what it watched.
+     *
+     * A MutationObserver records every label the element ever shows,
+     * which cannot miss one however slow the connection is.
      */
-    const labels = new Set<string>();
+    await page.evaluate(() => {
+      const w = window as unknown as { __bubbleLabels?: Set<string> };
+      w.__bubbleLabels = new Set<string>();
+      const el = document.querySelector('div[data-state][aria-hidden="true"]');
+      if (!el) return;
+      const record = () => {
+        const node = el as HTMLElement;
+        if (node.dataset.state === "in") {
+          const text = node.textContent?.trim();
+          if (text) w.__bubbleLabels!.add(text);
+        }
+      };
+      record();
+      new MutationObserver(record).observe(el, {
+        attributes: true,
+        attributeFilter: ["data-state"],
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    });
+
     await expect
       .poll(
-        async () => {
-          const s = await sample(page);
-          if (s?.state === "in" && s.opacity > 0.5 && s.text) labels.add(s.text);
-          return labels.size;
-        },
-        { timeout: 40_000, intervals: [400] }
+        async () =>
+          page.evaluate(
+            () => (window as unknown as { __bubbleLabels?: Set<string> }).__bubbleLabels?.size ?? 0
+          ),
+        { timeout: 45_000, intervals: [1000] }
       )
       .toBeGreaterThan(1);
   });
 
   test("they sit over the scene, not over the headline column", async ({ page }) => {
-    test.setTimeout(60_000);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
@@ -138,7 +166,6 @@ for (const [name, viewport] of [
   ["mobile", { width: 390, height: 844 }],
 ] as const) {
   test(`capture a visible bubble at ${name}`, async ({ page }) => {
-    test.setTimeout(60_000);
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.waitForLoadState("networkidle");

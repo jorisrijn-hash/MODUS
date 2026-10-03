@@ -16,7 +16,14 @@ import { test, expect, type Page } from "@playwright/test";
 test.use({ video: { mode: "on", size: { width: 1280, height: 800 } } });
 
 async function settle(page: Page) {
-  await page.waitForLoadState("networkidle");
+  /*
+   * Deliberately not `networkidle`. Against the deployment it does not
+   * settle — Clerk keeps connections open — so the whole test timed out
+   * inside this helper before reaching a single assertion. Waiting for
+   * the form Clerk actually renders is both faster and the thing that
+   * matters.
+   */
+  await page.waitForLoadState("domcontentloaded");
   await page.locator(".cl-formButtonPrimary, form").first().waitFor({ timeout: 20_000 }).catch(() => {});
   await page.waitForTimeout(700);
 }
