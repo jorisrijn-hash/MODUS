@@ -1,0 +1,65 @@
+/* Scoped app-reference palette. Marketing and Clerk keep their own themes. */
+.modus-workspace {
+  color-scheme: dark;
+  font-family: var(--font-sans, Arial), sans-serif;
+  --canvas: 10 13 12;
+  --canvas-secondary: 17 21 19;
+  --surface: 21 26 23;
+  --surface-elevated: 28 34 30;
+  --text-primary: 237 240 231;
+  --text-secondary: 190 198 189;
+  --text-muted: 157 169 157;
+  --line: 49 59 51;
+  --line-strong: 88 107 93;
+  --accent: 155 204 169;
+  --accent-light: 182 225 194;
+  --accent-dim: 37 70 47;
+  --danger: 242 151 139;
+  background: rgb(var(--canvas));
+  color: rgb(var(--text-primary));
+}
+.modus-workspace .bg-modus.text-white {
+  color: #15271c;
+}
+.modus-workspace .workspace-primary {
+  background: #dce9d9;
+  color: #15271c;
+}
+.workspace-panel {
+  border: 1px solid rgb(var(--line));
+  border-radius: 14px;
+  background: rgb(var(--surface));
+  padding: 20px;
+}
+.workspace-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(var(--text-muted));
+}
+.modus-workspace
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 4px;
+}
+.modus-workspace summary {
+  cursor: pointer;
+}
+.modus-workspace :is(input, textarea, select) {
+  color-scheme: dark;
+  font-family: var(--font-sans, Arial), sans-serif;
+}
+.modus-workspace .workspace-table-scroll {
+  overflow-x: auto;
+}
+.modus-workspace .workspace-table-scroll table {
+  min-width: 640px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .modus-workspace *,
+  .modus-workspace *::before,
+  .modus-workspace *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

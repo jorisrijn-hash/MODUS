@@ -870,7 +870,7 @@ export const en = {
         },
         {
           name: "Intelligence",
-          price: "€750",
+          price: "€700",
           period: "/month",
           desc: "Deeper diagnostic work and more frequent implementation across the business.",
         },
@@ -1231,7 +1231,7 @@ export const en = {
     hero: {
       label: "Platform",
       headline: "Your business. Understood.",
-      body: "Every MODUS client gets access to a private improvement platform showing business health, signals, active improvements and outcomes, always visible. Not an inbox you wait on.",
+      body: "Core and Partner engagements include access to a private improvement platform showing business health, signals, active improvements and outcomes, always visible. Not an inbox you wait on.",
     },
     modusBrief: {
       label: "MODUS Brief",
@@ -1533,8 +1533,8 @@ export const en = {
       label: "Pricing / Engagement",
       headline: "Built around your business.",
       body: "MODUS engagements are shaped by your operational complexity, systems, priorities and the improvements we're responsible for implementing.",
-      ctaPrimary: "Run Free Diagnostic",
-      ctaSecondary: "How Pricing Works",
+      ctaPrimary: "Get Your Personal Price",
+      ctaSecondary: "Compare Scope",
       microEstimate: "Personal Estimate",
       microTime: "~4 Min Diagnostic",
       microObligation: "No Obligation",
@@ -1553,8 +1553,8 @@ export const en = {
     },
     engagementStack: {
       label: "Engagement / Included",
-      heading: "What a MODUS engagement actually includes.",
-      body: "Every engagement combines continuous diagnosis, prioritization, implementation and measurement. The exact tools depend on what the business actually needs.",
+      heading: "What your engagement can include.",
+      body: "These capabilities are scoped to your engagement. Essentials is deliberately limited; Core and Partner add MODUS OS and ongoing implementation. Tools and capacity follow the agreed priorities.",
       expand: "Expand",
       collapse: "Collapse",
       items: [
@@ -1653,7 +1653,7 @@ export const en = {
           id: "08",
           title: "MODUS OS",
           benefit: "See what MODUS sees.",
-          status: "Included",
+          status: "Core & Partner",
           detail: {
             heading: "Visible Inside MODUS",
             items: ["Signals", "Active Improvements", "Performance", "Systems", "Reviews", "What's Next"],
@@ -1767,7 +1767,7 @@ export const en = {
       items: [
         {
           q: "How much does MODUS cost?",
-          a: "Engagements start at €495 per month. Most fall between €650 and €2,000 per month, depending on complexity. The free Diagnostic gives you a personal estimate for your business.",
+          a: "Indicative monthly tiers are about €200, €700 and €1,000. Essentials is deliberately limited; Core and Partner include MODUS OS. Your diagnostic gives a personal range, and the reviewed scope determines the quote. Complex work may require a separate scope.",
         },
         {
           q: "Why isn't there one fixed price?",

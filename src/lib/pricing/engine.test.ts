@@ -26,8 +26,8 @@ describe("calculateEngagementEstimate", () => {
   it("returns the minimum engagement for a simple, low-complexity business", () => {
     const result = calculateEngagementEstimate(baseInput);
     expect(result.manualScope).toBe(false);
-    expect(result.estimatedMin).toBe(495);
-    expect(result.estimatedMax).toBe(650);
+    expect(result.estimatedMin).toBe(200);
+    expect(result.estimatedMax).toBe(350);
     expect(result.band).toBe("focused");
   });
 
@@ -138,7 +138,7 @@ describe("calculateEngagementEstimate", () => {
       })
     );
     expect(result.band).toBe("focused");
-    expect(result.estimatedMin).toBe(495);
+    expect(result.estimatedMin).toBe(200);
   });
 
   it("handles very incomplete answers without throwing or producing NaN", () => {
@@ -197,9 +197,9 @@ describe("calculateEngagementEstimate", () => {
     }
   });
 
-  it("respects the minimum engagement floor of €495", () => {
+  it("respects the minimum engagement floor of €200", () => {
     const result = calculateEngagementEstimate(baseInput);
-    expect(result.estimatedMin).toBeGreaterThanOrEqual(495);
+    expect(result.estimatedMin).toBeGreaterThanOrEqual(200);
   });
 
   it("respects the automatic estimate ceiling of €2,000", () => {
@@ -219,10 +219,7 @@ describe("calculateEngagementEstimate", () => {
   });
 
   it("rounds a standard-scope adjustment to the configured €50 increment", () => {
-    // "Focused" band (495-650) plus the standard-scope adjustment (+150 to
-    // +350) is the one combination in this pricing model that doesn't add
-    // up to a clean multiple of 50 on its own (495+150=645), so it's the
-    // scenario that actually exercises the rounding logic.
+    // The base range plus scope adjustments must respect the €50 step.
     const result = calculateEngagementEstimate(
       withInput({ systems: ["CRM", "Email", "Booking"] }) // 3 systems -> standard scope
     );
@@ -231,11 +228,10 @@ describe("calculateEngagementEstimate", () => {
     expect(result.estimatedMax % 50).toBe(0);
   });
 
-  it("returns the exact configured band floor of €495 when no adjustment applies", () => {
-    // €495 is the business's deliberately-chosen floor, not itself a
-    // multiple of 50, and must never get silently rounded away.
+  it("returns the exact configured band floor of €200 when no adjustment applies", () => {
+    // A simple scope retains the new configured minimum.
     const result = calculateEngagementEstimate(baseInput);
-    expect(result.estimatedMin).toBe(495);
+    expect(result.estimatedMin).toBe(200);
   });
 
   it("never returns a negative or zero price", () => {
@@ -255,7 +251,7 @@ describe("calculateEngagementEstimate", () => {
 
   it("stamps every estimate with the current pricing model version", () => {
     const result = calculateEngagementEstimate(baseInput);
-    expect(result.pricingVersion).toBe("2026.01");
+    expect(result.pricingVersion).toBe("2026.10");
   });
 });
 
@@ -274,7 +270,7 @@ describe("recomputeForScopeOverride", () => {
 
   it("returns the exact configured floor for the focused band with light scope", () => {
     const result = recomputeForScopeOverride("focused", "light");
-    expect(result).toEqual({ estimatedMin: 495, estimatedMax: 650, manualScope: false });
+    expect(result).toEqual({ estimatedMin: 200, estimatedMax: 350, manualScope: false });
   });
 
   it("flags manual scope when the override scope is substantial, regardless of band", () => {

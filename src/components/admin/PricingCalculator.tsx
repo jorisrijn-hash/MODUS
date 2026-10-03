@@ -5,43 +5,85 @@ import { Copy, Link as LinkIcon } from "lucide-react";
 import type { ParsedDiagnostic } from "@/lib/admin/types";
 import { buildProposalText } from "@/lib/admin/proposalText";
 import { recomputeForScopeOverride } from "@/lib/pricing/engine";
-import { PRICING_CONFIG, type ImplementationScope, type PricingBandId } from "@/lib/pricing/config";
+import {
+  PRICING_CONFIG,
+  type ImplementationScope,
+  type PricingBandId,
+} from "@/lib/pricing/config";
 
-const SCOPE_OPTIONS: ImplementationScope[] = ["light", "standard", "substantial"];
+const SCOPE_OPTIONS: ImplementationScope[] = [
+  "light",
+  "standard",
+  "substantial",
+];
 
 export function PricingCalculator({
   diagnostic,
   onSave,
 }: {
   diagnostic: ParsedDiagnostic;
-  onSave: (patch: Record<string, number | string | boolean | null>) => Promise<void>;
+  onSave: (
+    patch: Record<string, number | string | boolean | null>,
+  ) => Promise<void>;
 }) {
   const [reviewedMin, setReviewedMin] = useState(
-    diagnostic.reviewedEstimateMin?.toString() ?? diagnostic.calculatedEstimateMin?.toString() ?? ""
+    diagnostic.reviewedEstimateMin?.toString() ??
+      diagnostic.calculatedEstimateMin?.toString() ??
+      "",
   );
   const [reviewedMax, setReviewedMax] = useState(
-    diagnostic.reviewedEstimateMax?.toString() ?? diagnostic.calculatedEstimateMax?.toString() ?? ""
+    diagnostic.reviewedEstimateMax?.toString() ??
+      diagnostic.calculatedEstimateMax?.toString() ??
+      "",
   );
-  const [finalAmount, setFinalAmount] = useState(diagnostic.finalProposalAmount?.toString() ?? "");
-  const [finalFee, setFinalFee] = useState(diagnostic.finalImplementationFee?.toString() ?? "");
-  const [finalNote, setFinalNote] = useState(diagnostic.finalProposalNote ?? "");
+  const [finalAmount, setFinalAmount] = useState(
+    diagnostic.finalProposalAmount?.toString() ?? "",
+  );
+  const [finalFee, setFinalFee] = useState(
+    diagnostic.finalImplementationFee?.toString() ?? "",
+  );
+  const [finalNote, setFinalNote] = useState(
+    diagnostic.finalProposalNote ?? "",
+  );
   const [scopeOverride, setScopeOverride] = useState<ImplementationScope>(
-    (diagnostic.implementationScope as ImplementationScope) ?? "light"
+    (diagnostic.implementationScope as ImplementationScope) ?? "light",
   );
-  const [savedField, setSavedField] = useState<"reviewed" | "proposal" | null>(null);
+  const [savedField, setSavedField] = useState<"reviewed" | "proposal" | null>(
+    null,
+  );
   const [sending, setSending] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  async function save(field: "reviewed" | "proposal", patch: Record<string, number | string | null>) {
-    await onSave(patch);
-    setSavedField(field);
-    window.setTimeout(() => setSavedField(null), 2000);
+  async function save(
+    field: "reviewed" | "proposal",
+    patch: Record<string, number | string | null>,
+  ) {
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onSave(patch);
+      setSavedField(field);
+      window.setTimeout(() => setSavedField(null), 2000);
+    } catch {
+      setSaveError(
+        "Not saved. Your inputs are preserved. Check your connection and try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function sendProposal() {
     setSending(true);
+    setSaveError("");
     try {
       await onSave({ sendProposal: true });
+    } catch {
+      setSaveError(
+        "The proposal could not be published. Save the agreed amount first, then try again.",
+      );
     } finally {
       setSending(false);
     }
@@ -58,7 +100,11 @@ export function PricingCalculator({
   }
 
   if (diagnostic.calculatedEstimateMin == null) {
-    return <p className="text-[13.5px] text-muted">No pricing estimate on this submission.</p>;
+    return (
+      <p className="text-[13.5px] text-muted">
+        No pricing estimate on this submission.
+      </p>
+    );
   }
 
   const bandId = (diagnostic.pricingBand as PricingBandId) ?? "focused";
@@ -70,7 +116,12 @@ export function PricingCalculator({
   const hasOfficialProposal = officialAmount != null || officialFee != null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={saving || sending}>
+      {saveError && (
+        <p role="alert" className="text-xs leading-relaxed text-danger">
+          {saveError}
+        </p>
+      )}
       {/* Backup info: the deterministic baseline, never re-run, always shown
           alongside any human override so the justification is never lost. */}
       <div className="flex flex-wrap items-baseline gap-3">
@@ -89,23 +140,46 @@ export function PricingCalculator({
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <CalcField label="Band" value={diagnostic.pricingBand ?? "Unknown"} />
-        <CalcField label="Complexity score" value={`${diagnostic.complexityScoreTotal ?? "?"} / 22`} />
-        <CalcField label="Implementation scope" value={diagnostic.implementationScope ?? "Unknown"} />
-        <CalcField label="Model version" value={diagnostic.pricingVersion ?? "Unknown"} />
+        <CalcField
+          label="Complexity score"
+          value={`${diagnostic.complexityScoreTotal ?? "?"} / 22`}
+        />
+        <CalcField
+          label="Implementation scope"
+          value={diagnostic.implementationScope ?? "Unknown"}
+        />
+        <CalcField
+          label="Model version"
+          value={diagnostic.pricingVersion ?? "Unknown"}
+        />
       </div>
 
       {diagnostic.pricingFactors && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <CalcField label="Business scale" value={diagnostic.pricingFactors.businessScale} />
-          <CalcField label="System fragmentation" value={diagnostic.pricingFactors.systemFragmentation} />
-          <CalcField label="Operational complexity" value={diagnostic.pricingFactors.operationalComplexity} />
-          <CalcField label="Implementation scope level" value={diagnostic.pricingFactors.implementationScope} />
+          <CalcField
+            label="Business scale"
+            value={diagnostic.pricingFactors.businessScale}
+          />
+          <CalcField
+            label="System fragmentation"
+            value={diagnostic.pricingFactors.systemFragmentation}
+          />
+          <CalcField
+            label="Operational complexity"
+            value={diagnostic.pricingFactors.operationalComplexity}
+          />
+          <CalcField
+            label="Implementation scope level"
+            value={diagnostic.pricingFactors.implementationScope}
+          />
         </div>
       )}
 
       {diagnostic.pricingReasoning.length > 0 && (
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">Why This Estimate</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
+            Why This Estimate
+          </p>
           <ul className="mt-1.5 space-y-1">
             {diagnostic.pricingReasoning.map((reason) => (
               <li key={reason} className="text-[13px] text-graphite">
@@ -121,12 +195,18 @@ export function PricingCalculator({
           real engine (recomputeForScopeOverride), not a rough guess. */}
       <div className="rounded-sm border border-line bg-mineral p-3">
         <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
-          Calculator — What If Scope Were Different?
+          Current-model scenario — what if scope were different?
+        </p>
+        <p className="mt-2 text-[11px] text-muted">
+          Uses model {PRICING_CONFIG.estimate.version}. The original stored
+          estimate above is unchanged.
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <select
             value={scopeOverride}
-            onChange={(e) => setScopeOverride(e.target.value as ImplementationScope)}
+            onChange={(e) =>
+              setScopeOverride(e.target.value as ImplementationScope)
+            }
             className="h-8 rounded border border-line bg-surface px-2 text-[12.5px] text-ink outline-none focus:border-modus"
           >
             {SCOPE_OPTIONS.map((s) => (
@@ -159,7 +239,7 @@ export function PricingCalculator({
         <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
           Reviewed Estimate (after MODUS validates)
         </p>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-[13px] text-muted">€</span>
           <input
             type="number"
@@ -177,17 +257,22 @@ export function PricingCalculator({
           />
           <button
             type="button"
+            disabled={saving}
             onClick={() =>
               save("reviewed", {
-                reviewedEstimateMin: reviewedMin === "" ? null : Number(reviewedMin),
-                reviewedEstimateMax: reviewedMax === "" ? null : Number(reviewedMax),
+                reviewedEstimateMin:
+                  reviewedMin === "" ? null : Number(reviewedMin),
+                reviewedEstimateMax:
+                  reviewedMax === "" ? null : Number(reviewedMax),
               })
             }
             className="ml-auto rounded bg-ink px-3 py-1.5 text-[12px] font-medium text-paper hover:bg-graphite"
           >
             Save
           </button>
-          {savedField === "reviewed" && <span className="text-[12px] text-modus">Saved.</span>}
+          {savedField === "reviewed" && (
+            <span className="text-[12px] text-modus">Saved.</span>
+          )}
         </div>
       </div>
 
@@ -216,8 +301,14 @@ export function PricingCalculator({
             className="h-8 w-40 rounded border border-line px-2 text-[13px] text-ink outline-none focus:border-modus"
           />
           <span className="text-[11.5px] text-muted">
-            Indicative: €{PRICING_CONFIG.initialImplementation.indicativeMin.toLocaleString("en-GB")}–€
-            {PRICING_CONFIG.initialImplementation.indicativeMax.toLocaleString("en-GB")}
+            Indicative: €
+            {PRICING_CONFIG.initialImplementation.indicativeMin.toLocaleString(
+              "en-GB",
+            )}
+            –€
+            {PRICING_CONFIG.initialImplementation.indicativeMax.toLocaleString(
+              "en-GB",
+            )}
           </span>
         </div>
         <textarea
@@ -230,6 +321,7 @@ export function PricingCalculator({
         <div className="mt-2 flex items-center gap-3">
           <button
             type="button"
+            disabled={saving}
             onClick={() =>
               save("proposal", {
                 finalProposalAmount: officialAmount,
@@ -241,18 +333,25 @@ export function PricingCalculator({
           >
             Save
           </button>
-          {savedField === "proposal" && <span className="text-[12px] text-modus">Saved.</span>}
+          {savedField === "proposal" && (
+            <span className="text-[12px] text-modus">Saved.</span>
+          )}
         </div>
       </div>
 
       {hasOfficialProposal && (
         <div className="rounded-sm border border-modus/30 bg-modus/5 p-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-modus">Official Price Proposal</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-modus">
+            Official Price Proposal
+          </p>
           <div className="mt-1.5 flex flex-wrap items-baseline gap-3">
             {officialAmount != null && (
               <p className="text-xl font-semibold text-ink">
                 €{officialAmount.toLocaleString("en-GB")}
-                <span className="text-[13px] font-normal text-muted"> / month</span>
+                <span className="text-[13px] font-normal text-muted">
+                  {" "}
+                  / month
+                </span>
               </p>
             )}
             {officialFee != null && (
@@ -263,7 +362,16 @@ export function PricingCalculator({
           </div>
           <button
             type="button"
-            onClick={() => copy(buildProposalText(diagnostic, officialAmount, officialFee, finalNote))}
+            onClick={() =>
+              copy(
+                buildProposalText(
+                  diagnostic,
+                  officialAmount,
+                  officialFee,
+                  finalNote,
+                ),
+              )
+            }
             className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] text-graphite hover:text-ink"
           >
             <Copy className="h-3 w-3" strokeWidth={1.75} />
@@ -280,21 +388,28 @@ export function PricingCalculator({
           this can't fire on an edit that was never saved. */}
       {diagnostic.finalProposalAmount != null && (
         <div className="rounded-sm border border-line bg-surface p-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">Send Proposal</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
+            Send Proposal
+          </p>
           {!diagnostic.contextToken ? (
             <p className="mt-1.5 text-[12.5px] text-muted">
-              No context token on this diagnostic (submitted before this feature existed) — a shareable link
-              can&apos;t be generated.
+              No context token on this diagnostic (submitted before this feature
+              existed) — a shareable link can&apos;t be generated.
             </p>
           ) : diagnostic.proposalSentAt ? (
             <>
               <p className="mt-1.5 text-[12.5px] text-graphite">
-                Sent {new Date(diagnostic.proposalSentAt).toLocaleString("en-GB")}
+                Sent{" "}
+                {new Date(diagnostic.proposalSentAt).toLocaleString("en-GB")}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-4">
                 <button
                   type="button"
-                  onClick={() => copyLink(`${window.location.origin}/proposal/${diagnostic.contextToken}`)}
+                  onClick={() =>
+                    copyLink(
+                      `${window.location.origin}/proposal/${diagnostic.contextToken}`,
+                    )
+                  }
                   className="inline-flex items-center gap-1.5 text-[12.5px] text-graphite hover:text-ink"
                 >
                   <LinkIcon className="h-3 w-3" strokeWidth={1.75} />
@@ -329,8 +444,12 @@ export function PricingCalculator({
 function CalcField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">{label}</p>
-      <p className="mt-1 text-[13px] font-medium capitalize text-ink">{value}</p>
+      <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-[13px] font-medium capitalize text-ink">
+        {value}
+      </p>
     </div>
   );
 }

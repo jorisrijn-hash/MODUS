@@ -1733,3 +1733,118 @@ diagnosis, and this one is recorded as the former.
 
 The instruction stands: if either recurs, copy its logs, trace and
 screenshots out of `test-results/` **before** anything else runs.
+
+## 33. MODUS OS upgrade — integrated from the bundle, 3 October 2026
+
+The supplied `MODUS-OS-UPGRADE.patch` is based on `c56a0d7`; the branch
+was three commits ahead. `git apply --check` failed on
+**`PROJECT-STATUS.md` only** — every source hunk applied cleanly — so the
+patch was applied with `--exclude=PROJECT-STATUS.md` and this section
+written instead. No newer work was overwritten and no second copy was
+applied.
+
+### What the bundle already proved, and what it did not
+
+The handoff's eight admin browser checks used **fixture data and mocked
+API responses**. They showed layout and interaction; they could not show
+that a stage change reaches the database, that history records it, or
+that a filtered URL filters. Those were the gaps, and they are now
+closed against the real authenticated API, the real development database
+and a **real Clerk browser session**.
+
+### 1. Mobile authentication — verified with real sessions
+
+`e2e/mobileAuth.spec.ts`, 6 tests, at 390px:
+
+| Check | Result |
+|---|---|
+| Menu offers `/sign-in` and `/sign-up`, not the demo control | pass |
+| No `/app/login` link anywhere | pass |
+| Guest diagnostic still reachable from the menu | pass |
+| Escape closes the menu **and restores focus to the trigger** | pass |
+| Navigating to sign-in closes the menu | pass |
+| A **real signed-in session** shows Clerk's account control | pass |
+| Signing out clears the session and restores the entry links | pass |
+| **Account switch leaks nothing** — A's company name absent, token removed | pass |
+
+### 2. `/private` workspace — verified against the real database
+
+`e2e/privateWorkspace.spec.ts`, 5 tests:
+
+- **A pipeline stage change persists.** Confirmed by the server (the
+  board announces only after the PATCH resolves), survives a reload, and
+  the record's own Activity Timeline shows `Status → …`. The stage is
+  restored afterwards, so verification leaves no workflow change behind.
+- **A filtered URL opens already filtered** — `?status=QUALIFIED`
+  pre-selects the control *and* every listed row is that status.
+- **Refresh re-reads from the server**, asserted on the actual request.
+- **A failed pricing save keeps the typed inputs** (`1234` still there).
+- **A successful delete returns to the inbox** and the record is gone,
+  confirmed through the API.
+
+`e2e/privateInbox.spec.ts` (8 tests) still passes against the rebuilt
+workspace: search, date filters, pagination, error-and-retry, note
+retention, `QUALIFIED` preserved, and **a revoked admin refused on the
+very next request**.
+
+### 3. Platform demo
+
+`e2e/platformPricing.spec.ts` passes, including the assertion that the
+demo issues **no non-GET requests** to `/api/private`, `/api/diagnostic`
+or `/api/cron`.
+
+### 4. Pricing
+
+Anchors €200 / €700 / €1,000, Core marked best value, OS only in Core and
+Partner, asserted at 390px and 1440px with no horizontal overflow and the
+primary CTA pointing at `/diagnostic`.
+
+**A coherence gap the patch missed, now fixed.** `/app` is publicly
+reachable and its billing and campaigns pages rendered **"€750/month"**
+from `src/lib/appDemo/data.ts`, whose own comment calls it "source of
+truth for pricing shown anywhere". That is the one place the new pricing
+had not reached. The displayed names and amounts now follow the owner's
+anchors; the object keys are unchanged because `DEMO_CLIENT.plan` and
+both pages key off them.
+
+**Historical quotes are untouched**, confirmed in the database:
+
+```
+404 records  pricingVersion 2026.01   e.g. €1050–1600, €1400–2000
+  3 records  pricingVersion 2026.10        €200–350  (new submissions)
+```
+
+### Evidence
+
+- `tsc --noEmit` clean · **78 unit tests** · production build passed ·
+  full e2e suite **118 passed, 0 failed, 0 skipped**.
+- Real-session integration: 6 mobile + 5 workspace + 8 inbox/detail.
+- Screenshots from the **real application with real records and a real
+  admin session** (not fixtures): `e2e-screens/os-{overview,pipeline,
+  inbox,detail}-{desktop,mobile}.png`, `os-demo-*`, `os-pricing-*`.
+
+### Two failures the full run surfaced, both fixed
+
+Artefacts preserved to
+`docs/evidence/full-suite-failures-2026-10-03/` before anything re-ran.
+
+1. **A real regression from the patch.** `PlatformMockup` wrapped its
+   caption strip in a `<footer>`, putting a second one on the homepage
+   beside the site footer; the existing smoke test matched two and
+   failed. It is a caption, not a page footer, so it is now a `div` —
+   fixing the cause rather than loosening the test.
+2. **My own test fault.** The pipeline restore step asserted
+   `Status → NEW` strictly, but a record accumulates one activity entry
+   per change, so after repeated runs several read identically. Scoped to
+   `.first()`.
+
+### Remaining limits
+
+- **Not pushed, not deployed.** Awaiting authorization.
+- Everything above is the **development** instance and the local
+  database. Production admin access remains Google OAuth, which cannot be
+  driven here; production authorization is verified separately with a
+  real session token (§18).
+- **MFA remains intentionally deferred.**
+- No schema change, no migration, no dependency change, no auth-gate or
+  RLS change.

@@ -327,11 +327,11 @@ export function calculateEngagementEstimate(input: EngagementEstimateInput): Eng
   const adjustmentMin = "adjustmentMin" in adjustment ? adjustment.adjustmentMin : 0;
   const adjustmentMax = "adjustmentMax" in adjustment ? adjustment.adjustmentMax : 0;
 
-  // The configured band bounds (495, 650, 900, ...) are the business's own
+  // The configured band bounds (200, 650, 900, ...) are the business's own
   // chosen figures, not arbitrary sums, so they're used as-is when nothing
   // is added to them. Rounding to the nearest €50 only applies once an
   // implementation-scope adjustment actually changes the number, so it
-  // never silently overrides a deliberately-chosen floor like €495.
+  // never silently overrides a deliberately-chosen floor like €200.
   let estimatedMin = adjustmentMin === 0 ? bandMin : roundToIncrement(bandMin + adjustmentMin);
   let estimatedMax = adjustmentMax === 0 ? bandMax : roundToIncrement(bandMax + adjustmentMax);
 

@@ -22,10 +22,20 @@ export const DEMO_CLIENT = {
 
 // ---- Plans (source of truth for pricing shown anywhere) -------------------
 
+/*
+ * Names and amounts follow the owner's October anchors (Essentials €200,
+ * Core €700, Partner €1,000). The keys are unchanged because
+ * `DEMO_CLIENT.plan` and the billing/campaign pages key off them; only
+ * what a visitor reads has changed.
+ *
+ * This matters because `/app` is publicly reachable and was rendering
+ * "€750/month" for a plan the rest of the site now prices at €700 — the
+ * one place the new pricing had not reached.
+ */
 export const PLANS = {
-  essential: { name: "MODUS Essential", price: 200 },
-  intelligence: { name: "MODUS Intelligence", price: 750 },
-  growth: { name: "MODUS Growth", price: 1000 },
+  essential: { name: "MODUS Essentials", price: 200 },
+  intelligence: { name: "MODUS Core", price: 700 },
+  growth: { name: "MODUS Partner", price: 1000 },
 } as const;
 
 export const ADVERTISING_BUDGET = 500; // always separate from the retainer

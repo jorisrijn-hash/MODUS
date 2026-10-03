@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { ClientUserButton } from "@/components/client/ClientUserButton";
+import { AuthControls } from "@/components/auth/AuthControls";
 import { LanguageSwitch } from "@/components/language/LanguageSwitch";
 import { ThemeSwitch } from "@/components/ui/ThemeSwitch";
 import { DiagnosticCTA } from "@/components/ui/DiagnosticCTA";
@@ -147,7 +147,7 @@ export function MarketingMobileNav({
               <ThemeSwitch />
               <LanguageSwitch />
             </div>
-            <ClientUserButton variant="mobile" />
+            <AuthControls variant="mobile" onNavigate={onClose} />
             <DiagnosticCTA variant="hero" source="mobile_nav" className="w-full justify-center" />
           </motion.div>
         </motion.div>

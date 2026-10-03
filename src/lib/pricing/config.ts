@@ -1,19 +1,19 @@
 /**
  * MODUS Pricing Model V1 — the commercial source of truth.
  *
- * These values come directly from the internal "MODUS Pricing Model V1"
- * framework document. Do not optimize, reinterpret, or invent amounts here;
- * change this file only when the business owner supplies a new version of
- * that document, and bump `estimate.version` when you do so historic
- * estimates stay explainable against the model that produced them.
+ * October owner revision: public anchors are approximately €200 / €700 /
+ * €1,000 monthly. The limited, low-complexity band now starts at €200.
+ * Higher complexity bands and scope adjustments are retained: anchors
+ * are guidance, not caps or promises of unlimited implementation.
+ * Existing persisted estimates retain their original amounts and version.
  */
 export const PRICING_CONFIG = {
   currency: "EUR",
   diagnostic: { price: 0 },
   monthly: {
-    minimum: 495,
+    minimum: 200,
     bands: [
-      { id: "focused", scoreMin: 0, scoreMax: 4, estimateMin: 495, estimateMax: 650 },
+      { id: "focused", scoreMin: 0, scoreMax: 4, estimateMin: 200, estimateMax: 350 },
       { id: "developing", scoreMin: 5, scoreMax: 8, estimateMin: 650, estimateMax: 900 },
       { id: "moderate", scoreMin: 9, scoreMax: 12, estimateMin: 900, estimateMax: 1250 },
       { id: "advanced", scoreMin: 13, scoreMax: 16, estimateMin: 1250, estimateMax: 1650 },
@@ -32,7 +32,7 @@ export const PRICING_CONFIG = {
     indicativeMax: 2500,
     displayPublicly: false,
   },
-  estimate: { roundingIncrement: 50, version: "2026.01" },
+  estimate: { roundingIncrement: 50, version: "2026.10" },
 } as const;
 
 export type PricingBandId = (typeof PRICING_CONFIG.monthly.bands)[number]["id"];

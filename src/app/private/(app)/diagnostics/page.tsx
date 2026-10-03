@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { STATUSES, type ParsedDiagnostic } from "@/lib/admin/types";
-import { STATUS_LABELS, WORKFLOW_STATUSES, statusLabel } from "@/lib/admin/status";
+import {
+  STATUS_LABELS,
+  WORKFLOW_STATUSES,
+  statusLabel,
+} from "@/lib/admin/status";
 
 /**
  * The submitted-diagnostics inbox.
@@ -29,26 +34,52 @@ type Response = {
 };
 
 export default function DiagnosticsPage() {
+  return (
+    <Suspense fallback={<LoadingRows />}>
+      <DiagnosticsInbox />
+    </Suspense>
+  );
+}
+
+function DiagnosticsInbox() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<Response | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("ALL");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [q, setQ] = useState(searchParams.get("q") ?? "");
+  const [status, setStatus] = useState(
+    STATUSES.includes(searchParams.get("status") as (typeof STATUSES)[number])
+      ? searchParams.get("status")!
+      : "ALL",
+  );
+  const [from, setFrom] = useState(searchParams.get("from") ?? "");
+  const [to, setTo] = useState(searchParams.get("to") ?? "");
   const [page, setPage] = useState(1);
   // Bumped to force a retry after an error, without changing any filter.
   const [attempt, setAttempt] = useState(0);
 
+  useEffect(() => {
+    const refresh = () => setAttempt((value) => value + 1);
+    window.addEventListener("modus:refresh", refresh);
+    return () => window.removeEventListener("modus:refresh", refresh);
+  }, []);
+
   // Any filter change returns to the first page: staying on page 4 of a
   // result set that now has one page shows an empty list that looks like
   // "no matches".
-  const resetTo = useCallback(<T,>(set: (v: T) => void) => (v: T) => {
-    set(v);
-    setPage(1);
-  }, []);
+  const resetTo = useCallback(
+    <T,>(set: (v: T) => void) =>
+      (v: T) => {
+        set(v);
+        setPage(1);
+      },
+    [],
+  );
 
   useEffect(() => {
-    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+    });
     if (q) params.set("q", q);
     if (status !== "ALL") params.set("status", status);
     if (from) params.set("from", from);
@@ -57,8 +88,12 @@ export default function DiagnosticsPage() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setState("loading");
-      fetch(`/api/private/diagnostics?${params.toString()}`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      fetch(`/api/private/diagnostics?${params.toString()}`, {
+        cache: "no-store",
+      })
+        .then((r) =>
+          r.ok ? r.json() : Promise.reject(new Error(String(r.status))),
+        )
         .then((json: Response) => {
           if (cancelled) return;
           setData(json);
@@ -83,7 +118,14 @@ export default function DiagnosticsPage() {
       <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
         MODUS / Diagnostics
       </p>
-      <h1 className="mt-2 font-serif text-[26px] leading-tight text-ink">Submitted diagnostics.</h1>
+      <h1 className="mt-2 font-serif text-[26px] leading-tight text-ink">
+        Submitted diagnostics.
+      </h1>
+
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-graphite">
+        Read the original answers, validate the signals, then record a decision.
+        Status describes your workflow; it does not send a notification.
+      </p>
 
       {/* Filters */}
       <div className="mt-7 flex flex-wrap items-end gap-3">
@@ -155,12 +197,13 @@ export default function DiagnosticsPage() {
           <Panel>
             <p className="text-[14px] text-ink">That didn&apos;t load.</p>
             <p className="mt-1 text-[13px] text-graphite">
-              The diagnostics list could not be fetched. Nothing has been changed.
+              The diagnostics list could not be fetched. Nothing has been
+              changed.
             </p>
             <button
               type="button"
               onClick={() => setAttempt((a) => a + 1)}
-              className="mt-4 inline-flex h-9 items-center rounded-full bg-modus px-4 text-[13px] font-medium text-white transition-colors hover:bg-modus-light"
+              className="mt-4 inline-flex h-9 items-center rounded-lg workspace-primary px-4 text-[13px] font-medium transition-colors hover:bg-modus-light"
             >
               Try again
             </button>
@@ -169,7 +212,9 @@ export default function DiagnosticsPage() {
 
         {state === "ready" && rows.length === 0 && (
           <Panel>
-            <p className="text-[14px] text-ink">No diagnostics match these filters.</p>
+            <p className="text-[14px] text-ink">
+              No diagnostics match these filters.
+            </p>
             <p className="mt-1 text-[13px] text-graphite">
               {q || status !== "ALL" || from || to
                 ? "Try widening the date range or clearing the search."
@@ -180,7 +225,7 @@ export default function DiagnosticsPage() {
 
         {showing && (
           <>
-            <div className="overflow-hidden rounded-md border border-line">
+            <div className="workspace-table-scroll rounded-xl border border-line">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-line bg-surface">
@@ -197,7 +242,10 @@ export default function DiagnosticsPage() {
                 </thead>
                 <tbody>
                   {rows.map((d) => (
-                    <tr key={d.id} className="border-b border-line/70 last:border-0 hover:bg-surface/60">
+                    <tr
+                      key={d.id}
+                      className="border-b border-line/70 last:border-0 hover:bg-surface/60"
+                    >
                       <td className="px-4 py-3">
                         <Link
                           href={`/private/diagnostics/${d.id}`}
@@ -205,11 +253,15 @@ export default function DiagnosticsPage() {
                         >
                           {d.companyName}
                         </Link>
-                        <p className="mt-0.5 text-[12px] text-muted">{d.industry}</p>
+                        <p className="mt-0.5 text-[12px] text-muted">
+                          {d.industry}
+                        </p>
                       </td>
                       <td className="px-4 py-3 text-[13px] text-graphite">
                         {d.firstName} {d.lastName}
-                        <p className="mt-0.5 text-[12px] text-muted">{d.email}</p>
+                        <p className="mt-0.5 text-[12px] text-muted">
+                          {d.email}
+                        </p>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-[13px] text-graphite">
                         {new Date(d.createdAt).toLocaleDateString("en-GB", {
@@ -241,26 +293,45 @@ export default function DiagnosticsPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted">{label}</span>
+      <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted">
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
 function Panel({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-line bg-surface px-5 py-6">{children}</div>;
+  return (
+    <div className="rounded-md border border-line bg-surface px-5 py-6">
+      {children}
+    </div>
+  );
 }
 
 /** Skeleton rows, so the inbox has a shape while it loads. */
 function LoadingRows() {
   return (
-    <div className="overflow-hidden rounded-md border border-line" aria-busy="true" aria-live="polite">
+    <div
+      className="overflow-hidden rounded-md border border-line"
+      aria-busy="true"
+      aria-live="polite"
+    >
       <span className="sr-only">Loading diagnostics…</span>
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-line/70 px-4 py-3.5 last:border-0">
+        <div
+          key={i}
+          className="flex items-center gap-4 border-b border-line/70 px-4 py-3.5 last:border-0"
+        >
           <span className="h-3 w-[22%] animate-pulse rounded bg-line/70" />
           <span className="h-3 w-[26%] animate-pulse rounded bg-line/50" />
           <span className="h-3 w-[14%] animate-pulse rounded bg-line/50" />
@@ -272,7 +343,9 @@ function LoadingRows() {
 }
 
 function StatusPill({ status }: { status: string }) {
-  const known = WORKFLOW_STATUSES.includes(status as (typeof WORKFLOW_STATUSES)[number]);
+  const known = WORKFLOW_STATUSES.includes(
+    status as (typeof WORKFLOW_STATUSES)[number],
+  );
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.08em] ${
@@ -307,7 +380,9 @@ function Pagination({
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
       <p className="text-[12.5px] text-muted">
-        {total === 0 ? "No results" : `${first}–${first + shown - 1} of ${total}`}
+        {total === 0
+          ? "No results"
+          : `${first}–${first + shown - 1} of ${total}`}
       </p>
       {pageCount > 1 && (
         <div className="flex items-center gap-2">
@@ -317,7 +392,10 @@ function Pagination({
           <span className="px-1 text-[12.5px] text-graphite">
             Page {page} of {pageCount}
           </span>
-          <PageButton disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
+          <PageButton
+            disabled={page >= pageCount}
+            onClick={() => onPage(page + 1)}
+          >
             Next
           </PageButton>
         </div>

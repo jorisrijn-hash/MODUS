@@ -843,7 +843,7 @@ export const nl: Dictionary = {
         },
         {
           name: "Intelligence",
-          price: "€750",
+          price: "€700",
           period: "/maand",
           desc: "Dieper diagnostisch werk en vaker implementeren, bedrijfsbreed.",
         },
@@ -1189,7 +1189,7 @@ export const nl: Dictionary = {
     hero: {
       label: "Platform",
       headline: "Jouw bedrijf. Doorgrond.",
-      body: "Elke MODUS-klant krijgt toegang tot een privé verbeterplatform met bedrijfsgezondheid, signalen, actieve verbeteringen en resultaten, altijd zichtbaar. Geen inbox waar je op moet wachten.",
+      body: "Core- en Partner-engagements bevatten toegang tot een privé verbeterplatform met bedrijfsgezondheid, signalen, actieve verbeteringen en resultaten, altijd zichtbaar. Geen inbox waar je op moet wachten.",
     },
     modusBrief: {
       label: "MODUS Brief",
@@ -1606,7 +1606,7 @@ export const nl: Dictionary = {
           id: "08",
           title: "MODUS OS",
           benefit: "Zien wat MODUS ziet.",
-          status: "Inbegrepen",
+          status: "Core & Partner",
           detail: {
             heading: "Zichtbaar Binnen MODUS",
             items: ["Signalen", "Actieve Verbeteringen", "Prestaties", "Systemen", "Reviews", "Wat Volgt"],
@@ -1720,7 +1720,7 @@ export const nl: Dictionary = {
       items: [
         {
           q: "Hoeveel kost MODUS?",
-          a: "Samenwerkingen beginnen vanaf €495 per maand. De meeste liggen tussen €650 en €2.000 per maand, afhankelijk van complexiteit. De gratis diagnose geeft je een persoonlijke inschatting voor jouw bedrijf.",
+          a: "Indicatieve maandprijzen zijn ongeveer €200, €700 en €1.000. Essentials is bewust beperkt; Core en Partner bevatten MODUS OS. De diagnose geeft een persoonlijke prijsrange; de gereviewde scope bepaalt de offerte. Complex werk kan een aparte scope vereisen.",
         },
         {
           q: "Waarom is er geen vaste prijs?",
