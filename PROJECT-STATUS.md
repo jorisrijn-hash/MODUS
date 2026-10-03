@@ -831,7 +831,9 @@ second factor. This remains the user's explicit decision. Any two-step
 verification on the underlying Google account protects the Google login
 only and is **not** application-enforced MFA.
 
-## 19. Clerk → Supabase: the production token has no `role` claim
+## 19. Clerk → Supabase on production — RESOLVED, then verified properly
+
+### The `role` claim was missing; it is now present
 
 Found while verifying production PostgREST access. **The previous
 evidence used the development issuer and did not carry over.**
@@ -869,3 +871,76 @@ exactly why the earlier evidence did not transfer.
 imported by any application code — the app reads and writes through
 Prisma server-side. This is a latent gap that must be closed before any
 browser-side Supabase access is relied on, not a live fault.
+
+### Resolved — fresh token, 3 October 2026
+
+The Clerk production instance now issues the claim. A fresh token minted
+through the sign-in-token flow carries:
+
+```
+claims: exp, fva, iat, iss, nbf, role, sid, sts, sub, v
+iss   = https://clerk.withmodus.co
+sub   = user_3KBVdozubSltDS4W58CkOj9BLcB
+role  = authenticated
+```
+
+The token itself was never printed. `role` is present where it was
+absent, so Supabase now assumes the `authenticated` Postgres role instead
+of falling back to `anon`.
+
+### The first ownership check failed, and the assertion was wrong
+
+Assigning the synthetic record to the production user and reading as that
+user returned **all five rows**, which looked like the four guest records
+being exposed. The policies are correct and so was the result:
+
+```
+diagnostic_select_own    USING ("ownerId" = current_clerk_id())
+diagnostic_select_admin  USING (is_modus_admin())
+```
+
+Postgres combines permissive policies with **OR**, and the account under
+test had just been granted admin membership (§18), so `is_modus_admin()`
+was true and it saw everything *by design*. Ownership isolation cannot be
+measured with an account that bypasses it.
+
+This is worth recording because the failure looked exactly like a data
+leak. It was a test that measured the wrong thing.
+
+### Ownership isolation, measured with admin OFF
+
+`scripts/verify-ownership-isolation.mjs` revokes admin membership for the
+duration, runs the check, and restores both the membership and the
+record's ownership in a `finally` block so a failed assertion cannot
+leave either changed.
+
+| Check | Result |
+|---|---|
+| `iss` | `https://clerk.withmodus.co` |
+| `role` | `authenticated` |
+| Anonymous — `Diagnostic`, `AdminMember`, `Profile` | rejected, `42501` |
+| Authenticated read returned | **1 row — non-empty** |
+| The owned record returned to its owner | yes |
+| Guest records visible | **none of the 4** |
+| Rows visible in total | exactly 1, the owned one |
+| `AdminMember` readable | no |
+
+**A zero-row result is treated as a failure by this script, not a pass.**
+An empty read is what a broken token also produces, so the owner case has
+to return the specific record — and it did.
+
+### Restored, and confirmed afterwards
+
+| | |
+|---|---|
+| Synthetic record ownership | back to `null` (guest) |
+| Admin membership | 1 active row |
+| Original diagnostics | all 4 present and still unowned |
+| `/api/admin/status` (live, as the admin) | `200`, `admin: true` |
+| `/api/private/overview` (live, as the admin) | `200` |
+| Diagnostics in production | 5 total, 5 unowned |
+
+So both behaviours are now evidenced on production: an administrator sees
+every record through `diagnostic_select_admin`, and an ordinary
+authenticated account sees only what it owns through
+`diagnostic_select_own` — while anonymous callers are refused outright.
